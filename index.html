@@ -965,42 +965,77 @@ class Player {
       const swing = Math.sin(this.walkCycle) * 0.4;
       if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = swing;
       if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -swing;
-      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -swing * 0.5;
+      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 - swing * 0.3;
     } else {
       // Idle sway
       this.walkCycle += dt * 2;
       const sway = Math.sin(this.walkCycle) * 0.03;
       if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = sway;
       if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -sway;
-      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = 0;
+      // Free arm at relaxed ready position (slightly raised for balance)
+      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 + sway;
     }
 
-    // Racket arm swing
-    if (this.swingPhase >= 0) {
-      this.swingPhase += dt * 4;
-      if (this.swingPhase > 1) {
-        this.swingPhase = -1;
-        if (this.bodyParts.racketArm) this.bodyParts.racketArm.rotation.x = 0;
-        if (this.bodyParts.racketArm) this.bodyParts.racketArm.rotation.z = 0;
-      } else {
-        const arm = this.bodyParts.racketArm;
-        if (arm) {
+    // Racket arm: ready position + swing animation
+    const arm = this.bodyParts.racketArm;
+    if (arm) {
+      // Ready position: racket arm raised to ~chest/head level
+      // Front players hold higher (net intercept), back players at mid-body
+      const isFront = this.role === 'front';
+      const readyX = isFront ? -1.2 : -0.7;   // arm angle: negative = raised forward/up
+      const readyZ = 0.1;                       // slight outward
+      // Subtle idle bob
+      const bob = Math.sin(this.walkCycle * 1.5) * 0.05;
+
+      if (this.swingPhase >= 0) {
+        // Active swing animation
+        this.swingPhase += dt * 5;
+        if (this.swingPhase > 1) {
+          this.swingPhase = -1; // swing done, return to ready
+        } else {
+          const t = this.swingPhase;
           if (this.swingType === 'smash' || this.swingType === 'clear' || this.swingType === 'serve_flick' || this.swingType === 'serve_high') {
-            // Overhead swing (also used for flick/high serve)
-            const wind = this.swingPhase < 0.4 ? -Math.PI * 0.8 * (this.swingPhase / 0.4) : 0;
-            const follow = this.swingPhase >= 0.4 ? Math.PI * 0.6 * ((this.swingPhase - 0.4) / 0.6) : 0;
-            arm.rotation.x = wind + follow;
-            arm.rotation.z = Math.sin(this.swingPhase * Math.PI) * 0.3;
+            // Overhead swing: wind up behind head → snap forward and down
+            if (t < 0.35) {
+              // Wind-up: arm goes back behind head
+              const wind = t / 0.35;
+              arm.rotation.x = readyX + (-Math.PI * 0.9 - readyX) * wind;
+              arm.rotation.z = wind * 0.4;
+            } else {
+              // Strike + follow through: fast forward snap
+              const strike = (t - 0.35) / 0.65;
+              arm.rotation.x = -Math.PI * 0.9 + Math.PI * 1.5 * strike;
+              arm.rotation.z = 0.4 * (1 - strike);
+            }
           } else if (this.swingType === 'drop' || this.swingType === 'net' || this.swingType === 'serve_short') {
-            // Gentle forward tap (short serve — soft push)
-            arm.rotation.x = Math.sin(this.swingPhase * Math.PI) * 0.6;
-            arm.rotation.z = Math.sin(this.swingPhase * Math.PI) * 0.2;
+            // Gentle forward push/tap
+            const push = Math.sin(t * Math.PI);
+            arm.rotation.x = readyX - push * 0.5;
+            arm.rotation.z = readyZ + push * 0.25;
+          } else if (this.swingType === 'lift') {
+            // Underhand scoop: arm goes down then flicks up
+            if (t < 0.4) {
+              const down = t / 0.4;
+              arm.rotation.x = readyX + (0.3 - readyX) * down; // arm drops
+              arm.rotation.z = readyZ;
+            } else {
+              const up = (t - 0.4) / 0.6;
+              arm.rotation.x = 0.3 - Math.PI * 0.8 * up; // flick upward
+              arm.rotation.z = readyZ + up * 0.2;
+            }
           } else {
-            // Drive - side swing
-            arm.rotation.z = -Math.sin(this.swingPhase * Math.PI) * 1.0;
-            arm.rotation.x = Math.sin(this.swingPhase * Math.PI) * 0.3;
+            // Drive: side swing
+            const side = Math.sin(t * Math.PI);
+            arm.rotation.x = readyX - side * 0.3;
+            arm.rotation.z = readyZ - side * 1.0;
           }
         }
+      }
+
+      // If not swinging, hold ready position with idle bob
+      if (this.swingPhase < 0) {
+        arm.rotation.x = readyX + bob;
+        arm.rotation.z = readyZ;
       }
     }
 
