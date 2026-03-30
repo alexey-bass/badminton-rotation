@@ -855,30 +855,22 @@ class Player {
   }
 
   _createReachZones() {
-    // Racket side multiplier
     this._racketSideSign = this.handedness === 'right' ? -1 : 1;
 
-    // Create gradient texture: green (center) → yellow → red (edge)
-    this._reachGradientTex = this._makeGradientTexture();
+    // Gradient colors: green → yellow → orange → red
+    this._gradientColors = [
+      new THREE.Color(0x16a34a), // 0.0 — deep green (center)
+      new THREE.Color(0x4ade80), // 0.2 — green
+      new THREE.Color(0xfacc15), // 0.4 — yellow
+      new THREE.Color(0xf97316), // 0.6 — orange
+      new THREE.Color(0xdc2626), // 0.8 — red
+      new THREE.Color(0x991b1b), // 1.0 — dark red (edge)
+    ];
 
-    // Impulse zone (outer, harder to reach → more red at edges)
-    const impulseGeo = this._makeReachShape(3.2, 2.2, 2.8, 2.5, 48);
-    this._assignUVs(impulseGeo, 3.2, 2.2, 2.8, 2.5);
-    const impulseMat = new THREE.MeshBasicMaterial({
-      map: this._reachGradientTex, transparent: true, opacity: reachOpacity * 0.6,
-      side: THREE.DoubleSide, depthWrite: false
-    });
-    this.impulseZone = new THREE.Mesh(impulseGeo, impulseMat);
-    this.impulseZone.rotation.x = -Math.PI / 2;
-    this.impulseZone.position.y = 0.02;
-    this.impulseZone.visible = false;
-    scene.add(this.impulseZone);
-
-    // Direct reach zone (inner, easy reach → mostly green)
-    const directGeo = this._makeReachShape(1.2, 0.7, 0.95, 0.85, 32);
-    this._assignUVs(directGeo, 1.2, 0.7, 0.95, 0.85);
+    // Direct reach zone
+    const directGeo = this._makeGradientRingGeo(1.2, 0.7, 0.95, 0.85, 48, 12);
     const directMat = new THREE.MeshBasicMaterial({
-      map: this._reachGradientTex, transparent: true, opacity: reachOpacity,
+      vertexColors: true, transparent: true, opacity: reachOpacity,
       side: THREE.DoubleSide, depthWrite: false
     });
     this.directZone = new THREE.Mesh(directGeo, directMat);
@@ -886,75 +878,96 @@ class Player {
     this.directZone.position.y = 0.03;
     this.directZone.visible = false;
     scene.add(this.directZone);
+
+    // Impulse zone
+    const impulseGeo = this._makeGradientRingGeo(3.2, 2.2, 2.8, 2.5, 48, 12);
+    const impulseMat = new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: reachOpacity * 0.6,
+      side: THREE.DoubleSide, depthWrite: false
+    });
+    this.impulseZone = new THREE.Mesh(impulseGeo, impulseMat);
+    this.impulseZone.rotation.x = -Math.PI / 2;
+    this.impulseZone.position.y = 0.02;
+    this.impulseZone.visible = false;
+    scene.add(this.impulseZone);
   }
 
-  _makeGradientTexture() {
-    // Radial gradient: green center → yellow mid → red edge
-    const size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const cx = size / 2, cy = size / 2;
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
-    gradient.addColorStop(0, 'rgba(22, 163, 74, 1)');       // deep green center
-    gradient.addColorStop(0.15, 'rgba(74, 222, 128, 0.9)'); // green
-    gradient.addColorStop(0.35, 'rgba(250, 204, 21, 0.8)'); // yellow
-    gradient.addColorStop(0.55, 'rgba(249, 115, 22, 0.7)'); // orange
-    gradient.addColorStop(0.75, 'rgba(220, 38, 38, 0.6)');  // red
-    gradient.addColorStop(1, 'rgba(153, 27, 27, 0.5)');     // dark red edge
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, size, size);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    return tex;
+  _sampleGradient(t) {
+    // t: 0 (center) to 1 (edge). Interpolate between gradient color stops.
+    const stops = this._gradientColors;
+    const n = stops.length - 1;
+    const idx = Math.min(t * n, n - 0.001);
+    const i = Math.floor(idx);
+    const frac = idx - i;
+    const c = new THREE.Color();
+    c.copy(stops[i]).lerp(stops[i + 1], frac);
+    return c;
   }
 
-  _assignUVs(geo, rSide, rOpp, rFwd, rBack) {
-    // Map UVs so center=0.5,0.5 and edges=0 or 1
-    // Each point's UV is based on its fractional distance from center to the boundary at that angle
-    const pos = geo.getAttribute('position');
-    const uvs = new Float32Array(pos.count * 2);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      const dist = Math.sqrt(x * x + y * y);
-      if (dist < 0.001) {
-        uvs[i * 2] = 0.5;
-        uvs[i * 2 + 1] = 0.5;
-      } else {
-        // Find the boundary radius at this angle
-        const angle = Math.atan2(x, y);
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const rX = sin > 0 ? rSide : rOpp;
-        const rZ = cos > 0 ? rFwd : rBack;
-        const boundaryR = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
-        // Normalized 0..1 from center to edge
-        const t = Math.min(dist / boundaryR, 1.0);
-        // Map to UV: center=0.5, edge at distance 0.5 from center
-        uvs[i * 2] = 0.5 + (x / dist) * t * 0.5;
-        uvs[i * 2 + 1] = 0.5 + (y / dist) * t * 0.5;
+  _boundaryRadius(angle, rSide, rOpp, rFwd, rBack) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rX = sin > 0 ? rSide : rOpp;
+    const rZ = cos > 0 ? rFwd : rBack;
+    return 1.0 / Math.sqrt((cos * cos) / (rZ * rZ) + (sin * sin) / (rX * rX));
+  }
+
+  _makeGradientRingGeo(rSide, rOpp, rFwd, rBack, angularSegs, radialSegs) {
+    // Build a disc with concentric rings of vertices, each colored by distance from center
+    const totalVerts = 1 + angularSegs * radialSegs; // center + rings
+    const positions = new Float32Array(totalVerts * 3);
+    const colors = new Float32Array(totalVerts * 3);
+    const indices = [];
+
+    // Center vertex (index 0)
+    positions[0] = 0; positions[1] = 0; positions[2] = 0;
+    const centerColor = this._sampleGradient(0);
+    colors[0] = centerColor.r; colors[1] = centerColor.g; colors[2] = centerColor.b;
+
+    // Concentric rings
+    for (let ring = 1; ring <= radialSegs; ring++) {
+      const t = ring / radialSegs; // 0→1 from center to edge
+      const gradColor = this._sampleGradient(t);
+
+      for (let seg = 0; seg < angularSegs; seg++) {
+        const angle = (seg / angularSegs) * Math.PI * 2;
+        const maxR = this._boundaryRadius(angle, rSide, rOpp, rFwd, rBack);
+        const r = maxR * t;
+
+        const vi = 1 + (ring - 1) * angularSegs + seg;
+        positions[vi * 3] = Math.sin(angle) * r;
+        positions[vi * 3 + 1] = Math.cos(angle) * r;
+        positions[vi * 3 + 2] = 0;
+
+        colors[vi * 3] = gradColor.r;
+        colors[vi * 3 + 1] = gradColor.g;
+        colors[vi * 3 + 2] = gradColor.b;
       }
     }
-    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-  }
 
-  _makeReachShape(rSide, rOpp, rFwd, rBack, segments) {
-    const shape = new THREE.Shape();
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const rX = sin > 0 ? rSide : rOpp;
-      const rZ = cos > 0 ? rFwd : rBack;
-      const r = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
-      const x = Math.sin(angle) * r;
-      const y = Math.cos(angle) * r;
-      if (i === 0) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
+    // Triangles: center fan (ring 0 to ring 1)
+    for (let seg = 0; seg < angularSegs; seg++) {
+      const next = (seg + 1) % angularSegs;
+      indices.push(0, 1 + seg, 1 + next);
     }
-    shape.closePath();
-    return new THREE.ShapeGeometry(shape, 1);
+
+    // Triangles: ring-to-ring quads
+    for (let ring = 1; ring < radialSegs; ring++) {
+      const base0 = 1 + (ring - 1) * angularSegs;
+      const base1 = 1 + ring * angularSegs;
+      for (let seg = 0; seg < angularSegs; seg++) {
+        const next = (seg + 1) % angularSegs;
+        indices.push(base0 + seg, base1 + seg, base1 + next);
+        indices.push(base0 + seg, base1 + next, base0 + next);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
   }
 
   updateReachZones() {
