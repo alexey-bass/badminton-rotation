@@ -892,15 +892,31 @@ class Player {
   }
 
   _assignUVs(geo, rSide, rOpp, rFwd, rBack) {
-    // Map UVs so center=0.5,0.5 and edges map to the circle edge of the texture
+    // Map UVs so center=0.5,0.5 and edges=0 or 1
+    // Each point's UV is based on its fractional distance from center to the boundary at that angle
     const pos = geo.getAttribute('position');
     const uvs = new Float32Array(pos.count * 2);
-    const maxR = Math.max(rSide, rOpp, rFwd, rBack);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const y = pos.getY(i);
-      uvs[i * 2] = 0.5 + (x / maxR) * 0.5;
-      uvs[i * 2 + 1] = 0.5 + (y / maxR) * 0.5;
+      const dist = Math.sqrt(x * x + y * y);
+      if (dist < 0.001) {
+        uvs[i * 2] = 0.5;
+        uvs[i * 2 + 1] = 0.5;
+      } else {
+        // Find the boundary radius at this angle
+        const angle = Math.atan2(x, y);
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const rX = sin > 0 ? rSide : rOpp;
+        const rZ = cos > 0 ? rFwd : rBack;
+        const boundaryR = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
+        // Normalized 0..1 from center to edge
+        const t = Math.min(dist / boundaryR, 1.0);
+        // Map to UV: center=0.5, edge at distance 0.5 from center
+        uvs[i * 2] = 0.5 + (x / dist) * t * 0.5;
+        uvs[i * 2 + 1] = 0.5 + (y / dist) * t * 0.5;
+      }
     }
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   }
