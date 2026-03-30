@@ -100,11 +100,10 @@ Light theme throughout:
 Each player has two floor-projected circles showing their coverage area:
 - **Direct reach**: asymmetric egg shape — wider on racket side (~1.2m), shorter on backhand (~0.7m)
 - **Impulse reach**: asymmetric — racket side ~3.2m, backhand ~2.2m
-- **Gradient coloring**: green (center, easy reach) → yellow → red (edges, hardest to reach). Uses radial `CanvasTexture` with custom UV mapping.
+- **Gradient coloring**: green (center, easy reach) → yellow → orange → red → dark red (edges, hardest to reach). Uses vertex-colored `BufferGeometry` with 12 concentric rings × 48 angular segments for smooth interpolation.
 - Zones rotate with player facing direction, racket side determined by handedness
 - Toggle on/off via checkbox in bottom controls bar
 - Opacity slider (0.05–0.5) to adjust visibility; impulse zone is at 60% of the set opacity
-- Custom `ShapeGeometry` with per-angle radius blending for smooth asymmetric shape
 
 ## UI Controls
 - Play/Pause button

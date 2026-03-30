@@ -14,7 +14,7 @@
   - Front player lateral shift to mirror back player's attack side
 - **4 serve types** — short (👇), flick (👆), high (☝️), drive (👉)
 - **Serve-specific formations** — short serve → attack, flick/high → defense
-- **Reach zone visualization** — toggle on/off to see each player's direct reach and impulse lunge range
+- **Reach zone visualization** — asymmetric zones (wider on racket side), green-to-red gradient showing easy vs hard-to-reach areas
 - **Playback speed** — 0.1x to 3.0x
 - **Player setup** — custom names, left/right-handed option per player
 - **Orbit camera** — click & drag to rotate, scroll to zoom
