@@ -1660,18 +1660,24 @@ class RallyEngine {
     const hitter = this.players[hitterIdx];
     const hx = hitter.position.x;
 
-    // Cross-court vs straight: 40% cross, 30% straight, 30% middle
+    // Determine which side the hitter is on (left/right/center)
+    const hSide = hx > 0.5 ? 1 : (hx < -0.5 ? -1 : 0);
+    const courtSideRange = HALF_W - 0.4; // usable X range (~2.65m)
+
+    // Cross-court vs straight vs middle: 35% cross, 35% straight, 30% middle
     const r = Math.random();
     let targetX;
-    if (r < 0.4) {
-      // Cross-court: aim at opposite side from hitter + some variation
-      targetX = -hx * (0.6 + Math.random() * 0.6) + (Math.random() - 0.5) * 0.5;
-    } else if (r < 0.7) {
-      // Straight: same side as hitter + variation
-      targetX = hx * (0.4 + Math.random() * 0.5) + (Math.random() - 0.5) * 0.5;
+    if (r < 0.35) {
+      // Cross-court: aim at opposite side of the court
+      const oppSide = hSide !== 0 ? -hSide : (Math.random() > 0.5 ? 1 : -1);
+      targetX = oppSide * (1.0 + Math.random() * (courtSideRange - 1.0));
+    } else if (r < 0.70) {
+      // Straight: aim at same side of the court
+      const sameSide = hSide !== 0 ? hSide : (Math.random() > 0.5 ? 1 : -1);
+      targetX = sameSide * (0.8 + Math.random() * (courtSideRange - 0.8));
     } else {
-      // Middle
-      targetX = (Math.random() - 0.5) * 1.0;
+      // Middle: within center strip
+      targetX = (Math.random() - 0.5) * 1.5;
     }
     // Clamp within court
     targetX = Math.max(-HALF_W + 0.3, Math.min(HALF_W - 0.3, targetX));
