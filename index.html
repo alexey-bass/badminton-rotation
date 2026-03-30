@@ -1140,42 +1140,47 @@ class Shuttlecock {
     // Scale up 3x for visibility
     const S = 3.0;
 
-    // Cork base — bright yellow/neon for visibility
+    // Build shuttlecock along +Z axis (cork at front, feathers trailing behind)
+    // lookAt() orients +Z toward direction of travel, so cork leads
+
+    // Cork base — bright yellow/neon for visibility (at +Z front)
     const corkGeo = new THREE.SphereGeometry(0.03 * S, 10, 10);
     const corkMat = new THREE.MeshStandardMaterial({
       color: 0xffd000, roughness: 0.3, emissive: 0xaa8800, emissiveIntensity: 0.3
     });
     const cork = new THREE.Mesh(corkGeo, corkMat);
+    cork.position.z = 0.04 * S; // cork at the front
     this.group.add(cork);
 
-    // Feather skirt — individual feathers fanning out
+    // Feather skirt — individual feathers fanning out behind cork (-Z direction)
     const featherCount = 12;
     const featherMat = new THREE.MeshStandardMaterial({
       color: 0xffffff, roughness: 0.5, side: THREE.DoubleSide
     });
     for (let i = 0; i < featherCount; i++) {
       const angle = (i / featherCount) * Math.PI * 2;
-      // Each feather is a thin tapered plane
       const fGeo = new THREE.CylinderGeometry(0.002 * S, 0.018 * S, 0.08 * S, 4);
       const feather = new THREE.Mesh(fGeo, featherMat);
+      // Position feathers trailing behind (negative Z) and fanning outward in XY
       feather.position.set(
         Math.cos(angle) * 0.025 * S,
-        0.06 * S,
-        Math.sin(angle) * 0.025 * S
+        Math.sin(angle) * 0.025 * S,
+        -0.04 * S
       );
-      // Tilt feathers outward
-      feather.rotation.x = Math.sin(angle) * 0.3;
-      feather.rotation.z = -Math.cos(angle) * 0.3;
+      // Orient feathers along Z axis (trailing back) and tilt outward
+      feather.rotation.x = Math.PI / 2 + Math.sin(angle) * 0.3;
+      feather.rotation.y = Math.cos(angle) * 0.3;
       this.group.add(feather);
     }
 
-    // Skirt cone (connecting feathers)
+    // Skirt cone along Z axis (tip at cork, open end trailing)
     const skirtGeo = new THREE.ConeGeometry(0.05 * S, 0.07 * S, 12, 1, true);
     const skirtMat = new THREE.MeshStandardMaterial({
       color: 0xf0f0f0, transparent: true, opacity: 0.5, side: THREE.DoubleSide
     });
     const skirt = new THREE.Mesh(skirtGeo, skirtMat);
-    skirt.position.y = 0.05 * S;
+    skirt.rotation.x = -Math.PI / 2; // rotate cone to point along +Z
+    skirt.position.z = -0.02 * S;    // trail behind cork
     this.group.add(skirt);
 
     // Trail
