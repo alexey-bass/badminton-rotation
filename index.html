@@ -1447,6 +1447,7 @@ class RallyEngine {
     this.lastHitterIdx = -1;
     this.rallyLength = 0;
     this.maxRallyLength = 8 + Math.floor(Math.random() * 8); // 8-15 shots per rally
+    this._preSwungReceiver = false;
 
     this._initPositions();
   }
@@ -1585,7 +1586,7 @@ class RallyEngine {
     this._applyFormations(targetX, targetZ);
     this._updateDisplay(shotType, hitter);
 
-    this.shotTimer = duration + 0.15;
+    this.shotTimer = duration;
     this.state = 'rally';
     document.getElementById('serve-overlay').classList.remove('visible');
   }
@@ -1876,7 +1877,7 @@ class RallyEngine {
 
     this.lastHitterIdx = hitterIdx;
     this._updateDisplay(shotType, hitter);
-    this.shotTimer = duration + 0.12;
+    this.shotTimer = duration;
     return true;
   }
 
@@ -1913,7 +1914,22 @@ class RallyEngine {
 
     if (this.state === 'rally') {
       this.shotTimer -= dt;
+
+      // Pre-swing: receiver starts swing ~0.2s before shuttle arrives
+      if (this.shotTimer > 0 && this.shotTimer < 0.2 && !this._preSwungReceiver) {
+        const lastTarget = this.shuttle.endPos;
+        const recvTeam = lastTarget.z > 0 ? 'B' : 'A';
+        const receiverIdx = this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
+        // Determine what shot the receiver will play (peek ahead)
+        const nextShot = this._chooseShot(receiverIdx);
+        this.players[receiverIdx].startSwing(nextShot);
+        this._preSwungReceiver = true;
+        this._preSwungShotType = nextShot;
+        this._preSwungIdx = receiverIdx;
+      }
+
       if (this.shotTimer <= 0) {
+        this._preSwungReceiver = false;
         // Try to generate the next shot dynamically
         if (!this._executeNextShot()) {
           // Rally over
