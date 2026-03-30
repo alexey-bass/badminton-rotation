@@ -1618,31 +1618,41 @@ class RallyEngine {
     const oppTeam = this._otherTeam(team);
     const oppZ = this._zSign(oppTeam);
     const hitter = this.players[hitterIdx];
+    const hx = hitter.position.x;
 
-    // Add some randomness to X position for variety
-    const rx = (Math.random() - 0.5) * 2.0; // -1 to 1 range within court
+    // Cross-court vs straight: 40% cross, 30% straight, 30% middle
+    const r = Math.random();
+    let targetX;
+    if (r < 0.4) {
+      // Cross-court: aim at opposite side from hitter + some variation
+      targetX = -hx * (0.6 + Math.random() * 0.6) + (Math.random() - 0.5) * 0.5;
+    } else if (r < 0.7) {
+      // Straight: same side as hitter + variation
+      targetX = hx * (0.4 + Math.random() * 0.5) + (Math.random() - 0.5) * 0.5;
+    } else {
+      // Middle
+      targetX = (Math.random() - 0.5) * 1.0;
+    }
+    // Clamp within court
+    targetX = Math.max(-HALF_W + 0.3, Math.min(HALF_W - 0.3, targetX));
 
     switch (shotType) {
       case 'smash':
-        // Aim at mid-court of opponent, with side variation
-        return { x: rx * 1.5, z: oppZ * (2.5 + Math.random() * 1.5), y: 0.4, hitY: 2.5 };
+        return { x: targetX, z: oppZ * (2.5 + Math.random() * 1.5), y: 0.4, hitY: 2.5 };
       case 'drop':
-        // Short, just past the net
-        return { x: rx * 1.0, z: oppZ * (1.5 + Math.random() * 1.0), y: 0.3, hitY: 2.2 };
+        return { x: targetX, z: oppZ * (1.5 + Math.random() * 1.0), y: 0.3, hitY: 2.2 };
       case 'clear':
-        // High and deep to back court
-        return { x: rx * 1.2, z: oppZ * (HALF_L - 1.0 + Math.random() * 0.5), y: 0.3, hitY: 2.5 };
+        // Clears often go cross-court to open space
+        return { x: targetX, z: oppZ * (HALF_L - 1.0 + Math.random() * 0.5), y: 0.3, hitY: 2.5 };
       case 'lift':
-        // High to opponent's back court
-        return { x: rx * 1.0, z: oppZ * (HALF_L - 1.5 + Math.random() * 1.0), y: 0.3, hitY: 1.3 };
+        return { x: targetX, z: oppZ * (HALF_L - 1.5 + Math.random() * 1.0), y: 0.3, hitY: 1.3 };
       case 'net':
-        // Tight to the net
-        return { x: rx * 0.8, z: oppZ * (0.8 + Math.random() * 0.8), y: 0.5, hitY: 1.4 };
+        // Net shots: cross-net (side to side) or straight, tighter X range near net
+        return { x: targetX * 0.8, z: oppZ * (0.6 + Math.random() * 0.8), y: 0.5, hitY: 1.4 };
       case 'drive':
-        // Flat and fast to mid-court
-        return { x: rx * 1.5, z: oppZ * (2.0 + Math.random() * 2.0), y: 0.7, hitY: 1.6 };
+        return { x: targetX, z: oppZ * (2.0 + Math.random() * 2.0), y: 0.7, hitY: 1.6 };
       default:
-        return { x: rx, z: oppZ * 3.0, y: 0.3, hitY: 1.5 };
+        return { x: targetX, z: oppZ * 3.0, y: 0.3, hitY: 1.5 };
     }
   }
 
