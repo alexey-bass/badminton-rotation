@@ -119,7 +119,7 @@ Before the game starts, a setup screen (`#setup-screen`) is shown with:
 - Playback speed slider (0.1x–3.0x, default 1.0x) — syncs to the in-game speed control on start
 - "Start Game" button — creates players with chosen settings, hides setup, begins simulation
 
-Name pools: males (Krzysztof, Tomasz, Jakub, Mateusz, Piotr, Bartek, Kamil, Dawid, Marcin, Wojtek), females (Kasia, Ania, Magda, Ola, Zuzia, Monika, Patrycja, Ewa, Agnieszka, Joanna).
+Name pools: males (Aleks, Tomasz, Jakub, Mateusz, Piotr, Bartek, Kamil, Dawid, Marcin, Wojtek), females (Ola, Kasia, Ania, Magda, Zuzia, Monika, Patrycja, Ewa, Agnieszka, Joanna).
 
 ## How to Run
 ```
