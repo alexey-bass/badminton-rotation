@@ -383,7 +383,7 @@ function createCourt() {
   // Court surface
   const courtGeo = new THREE.PlaneGeometry(COURT_W + 0.1, COURT_L + 0.1);
   const courtMat = new THREE.MeshStandardMaterial({
-    color: 0x1a6b3a, roughness: 0.6, metalness: 0.05
+    color: 0x8a8a8a, roughness: 0.6, metalness: 0.05
   });
   const court = new THREE.Mesh(courtGeo, courtMat);
   court.rotation.x = -Math.PI / 2;
@@ -837,42 +837,17 @@ class Player {
   }
 
   _createReachZones() {
-    const teamColor = this.team === 'A' ? 0x3b82f6 : 0xef4444;
-    const impulseColor = this.team === 'A' ? 0x60a5fa : 0xfca5a5;
-
-    // Asymmetric reach: wider on racket side, shorter on backhand side
-    // Direct: racket side ~1.2m, backhand ~0.7m, forward/back ~0.9m
-    // Impulse: racket side ~3.2m, backhand ~2.2m, forward/back ~2.8m
-
-    // Use a custom egg/teardrop shape via ShapeGeometry
-    this._makeReachShape = (rSide, rOpp, rFwd, rBack, segments) => {
-      const shape = new THREE.Shape();
-      for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * Math.PI * 2;
-        // Vary radius by angle: 0=forward(+Z local), PI/2=racket side, PI=back, 3PI/2=backhand
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        // Blend radii based on direction
-        const rX = sin > 0 ? rSide : rOpp;     // left/right asymmetry
-        const rZ = cos > 0 ? rFwd : rBack;     // front/back
-        const r = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
-        const x = Math.sin(angle) * r;
-        const y = Math.cos(angle) * r;
-        if (i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-      }
-      shape.closePath();
-      return new THREE.ShapeGeometry(shape, 1);
-    };
-
-    // Racket side multiplier: right-handed → side=-1 in model space
-    // but which world side depends on facing. We'll rotate the zone each frame.
+    // Racket side multiplier
     this._racketSideSign = this.handedness === 'right' ? -1 : 1;
 
-    // Impulse zone
+    // Create gradient texture: green (center) → yellow → red (edge)
+    this._reachGradientTex = this._makeGradientTexture();
+
+    // Impulse zone (outer, harder to reach → more red at edges)
     const impulseGeo = this._makeReachShape(3.2, 2.2, 2.8, 2.5, 48);
+    this._assignUVs(impulseGeo, 3.2, 2.2, 2.8, 2.5);
     const impulseMat = new THREE.MeshBasicMaterial({
-      color: impulseColor, transparent: true, opacity: reachOpacity * 0.6,
+      map: this._reachGradientTex, transparent: true, opacity: reachOpacity * 0.6,
       side: THREE.DoubleSide, depthWrite: false
     });
     this.impulseZone = new THREE.Mesh(impulseGeo, impulseMat);
@@ -881,10 +856,11 @@ class Player {
     this.impulseZone.visible = false;
     scene.add(this.impulseZone);
 
-    // Direct reach zone
+    // Direct reach zone (inner, easy reach → mostly green)
     const directGeo = this._makeReachShape(1.2, 0.7, 0.95, 0.85, 32);
+    this._assignUVs(directGeo, 1.2, 0.7, 0.95, 0.85);
     const directMat = new THREE.MeshBasicMaterial({
-      color: teamColor, transparent: true, opacity: reachOpacity,
+      map: this._reachGradientTex, transparent: true, opacity: reachOpacity,
       side: THREE.DoubleSide, depthWrite: false
     });
     this.directZone = new THREE.Mesh(directGeo, directMat);
@@ -892,6 +868,58 @@ class Player {
     this.directZone.position.y = 0.03;
     this.directZone.visible = false;
     scene.add(this.directZone);
+  }
+
+  _makeGradientTexture() {
+    // Radial gradient: green center → yellow mid → red edge
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const cx = size / 2, cy = size / 2;
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.9)');    // green center
+    gradient.addColorStop(0.35, 'rgba(74, 222, 128, 0.7)'); // light green
+    gradient.addColorStop(0.6, 'rgba(250, 204, 21, 0.6)');  // yellow
+    gradient.addColorStop(0.8, 'rgba(249, 115, 22, 0.5)');  // orange
+    gradient.addColorStop(1, 'rgba(239, 68, 68, 0.4)');     // red edge
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  _assignUVs(geo, rSide, rOpp, rFwd, rBack) {
+    // Map UVs so center=0.5,0.5 and edges map to the circle edge of the texture
+    const pos = geo.getAttribute('position');
+    const uvs = new Float32Array(pos.count * 2);
+    const maxR = Math.max(rSide, rOpp, rFwd, rBack);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      uvs[i * 2] = 0.5 + (x / maxR) * 0.5;
+      uvs[i * 2 + 1] = 0.5 + (y / maxR) * 0.5;
+    }
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  }
+
+  _makeReachShape(rSide, rOpp, rFwd, rBack, segments) {
+    const shape = new THREE.Shape();
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rX = sin > 0 ? rSide : rOpp;
+      const rZ = cos > 0 ? rFwd : rBack;
+      const r = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
+      const x = Math.sin(angle) * r;
+      const y = Math.cos(angle) * r;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape, 1);
   }
 
   updateReachZones() {

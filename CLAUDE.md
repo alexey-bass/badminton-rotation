@@ -91,15 +91,16 @@ Uses cubic bezier with two control points (cp1 on hitter's side, cp2 on receiver
 
 ## Theme
 Light theme throughout:
-- **3D scene**: light gray-blue sky (`0xe8ecf1`), warm wood-tone gym floor (`0xc8b99a`), bright lighting (exposure 1.6)
+- **3D scene**: light gray-blue sky (`0xe8ecf1`), warm wood-tone gym floor (`0xc8b99a`), gray court surface (`0x8a8a8a`), bright lighting (exposure 1.6)
 - **UI overlays**: white/translucent backgrounds, dark text, subtle borders and box-shadows
 - **Accent colors**: amber/warm (`#b45309`, `#d97706`) for highlights, dark blue (`#1d4ed8`) for Team A, dark red (`#b91c1c`) for Team B
 - **Player labels**: white background with team-colored text and subtle shadow
 
 ## Reach Zones
 Each player has two floor-projected circles showing their coverage area:
-- **Direct reach** (solid team color): asymmetric egg shape — wider on racket side (~1.2m), shorter on backhand (~0.7m)
-- **Impulse reach** (lighter team color): asymmetric — racket side ~3.2m, backhand ~2.2m
+- **Direct reach**: asymmetric egg shape — wider on racket side (~1.2m), shorter on backhand (~0.7m)
+- **Impulse reach**: asymmetric — racket side ~3.2m, backhand ~2.2m
+- **Gradient coloring**: green (center, easy reach) → yellow → red (edges, hardest to reach). Uses radial `CanvasTexture` with custom UV mapping.
 - Zones rotate with player facing direction, racket side determined by handedness
 - Toggle on/off via checkbox in bottom controls bar
 - Opacity slider (0.05–0.5) to adjust visibility; impulse zone is at 60% of the set opacity
