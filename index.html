@@ -694,10 +694,11 @@ class Player {
       this.group.add(shorts);
     }
 
-    // ---- LEGS (upper + lower with knee joint) ----
+    // ---- LEGS (hip pivot > thigh + knee pivot > shin + shoe) ----
     for (let side of [-1, 1]) {
-      const legPivot = new THREE.Group();
-      legPivot.position.set(side * 0.06 * s, hipY, 0);
+      // Hip pivot (rotates whole leg from hip)
+      const hipPivot = new THREE.Group();
+      hipPivot.position.set(side * 0.06 * s, hipY, 0);
 
       // Upper leg (thigh)
       const thigh = new THREE.Mesh(
@@ -705,59 +706,66 @@ class Player {
       );
       thigh.position.y = -0.19 * s;
       thigh.castShadow = true;
-      legPivot.add(thigh);
+      hipPivot.add(thigh);
 
-      // Knee joint (small sphere)
-      const knee = new THREE.Mesh(
+      // Knee pivot (at bottom of thigh, rotates lower leg independently)
+      const kneePivot = new THREE.Group();
+      kneePivot.position.y = -0.38 * s;
+      hipPivot.add(kneePivot);
+
+      // Knee joint sphere
+      const kneeJoint = new THREE.Mesh(
         new THREE.SphereGeometry(0.035 * s, 6, 6), skinMat
       );
-      knee.position.y = -0.38 * s;
-      legPivot.add(knee);
+      kneePivot.add(kneeJoint);
 
       // Lower leg (shin)
       const shin = new THREE.Mesh(
         new THREE.CylinderGeometry(0.04 * s, 0.035 * s, 0.35 * s, 8), skinMat
       );
-      shin.position.y = -0.56 * s;
+      shin.position.y = -0.18 * s;
       shin.castShadow = true;
-      legPivot.add(shin);
+      kneePivot.add(shin);
 
       // Ankle
       const ankle = new THREE.Mesh(
         new THREE.SphereGeometry(0.03 * s, 6, 6), skinMat
       );
-      ankle.position.y = -0.73 * s;
-      legPivot.add(ankle);
+      ankle.position.y = -0.35 * s;
+      kneePivot.add(ankle);
 
       // Shoe
       const shoe = new THREE.Mesh(
         new THREE.BoxGeometry(0.07 * s, 0.045 * s, 0.14 * s), whiteMat
       );
-      shoe.position.set(0, -0.76 * s, 0.02 * s); // slightly forward
-      legPivot.add(shoe);
+      shoe.position.set(0, -0.38 * s, 0.02 * s);
+      kneePivot.add(shoe);
 
       // Shoe accent stripe
       const stripe = new THREE.Mesh(
         new THREE.BoxGeometry(0.072 * s, 0.015 * s, 0.08 * s),
         new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 })
       );
-      stripe.position.set(0, -0.75 * s, 0.02 * s);
-      legPivot.add(stripe);
+      stripe.position.set(0, -0.37 * s, 0.02 * s);
+      kneePivot.add(stripe);
 
-      this.group.add(legPivot);
-      this.bodyParts[side === -1 ? 'leftLeg' : 'rightLeg'] = legPivot;
+      this.group.add(hipPivot);
+      const sideKey = side === -1 ? 'left' : 'right';
+      this.bodyParts[sideKey + 'Leg'] = hipPivot;
+      this.bodyParts[sideKey + 'Knee'] = kneePivot;
     }
 
-    // ---- ARMS (upper + lower with elbow joint) ----
+    // ---- ARMS (shoulder pivot > upper arm + elbow pivot > forearm + hand + racket) ----
     for (let side of [-1, 1]) {
-      const armPivot = new THREE.Group();
-      armPivot.position.set(side * 0.19 * s, shoulderY - 0.04, 0);
+      // Shoulder pivot (rotates whole arm)
+      const shoulderPivot = new THREE.Group();
+      shoulderPivot.position.set(side * 0.19 * s, shoulderY - 0.04, 0);
 
-      // Shoulder joint
-      const shoulder = new THREE.Mesh(
+      // Shoulder joint sphere
+      const shoulderJoint = new THREE.Mesh(
         new THREE.SphereGeometry(0.04 * s, 8, 8), mat
       );
-      armPivot.add(shoulder);
+      shoulderPivot.add(shoulderJoint);
 
       // Upper arm
       const upperArm = new THREE.Mesh(
@@ -765,40 +773,46 @@ class Player {
       );
       upperArm.position.y = -0.14 * s;
       upperArm.castShadow = true;
-      armPivot.add(upperArm);
+      shoulderPivot.add(upperArm);
 
-      // Elbow joint
-      const elbow = new THREE.Mesh(
+      // Elbow pivot (at bottom of upper arm, rotates forearm independently)
+      const elbowPivot = new THREE.Group();
+      elbowPivot.position.y = -0.25 * s;
+      shoulderPivot.add(elbowPivot);
+
+      // Elbow joint sphere
+      const elbowJoint = new THREE.Mesh(
         new THREE.SphereGeometry(0.028 * s, 6, 6), skinMat
       );
-      elbow.position.y = -0.25 * s;
-      armPivot.add(elbow);
+      elbowPivot.add(elbowJoint);
 
       // Forearm
       const forearm = new THREE.Mesh(
         new THREE.CylinderGeometry(0.028 * s, 0.025 * s, 0.2 * s, 8), skinMat
       );
-      forearm.position.y = -0.36 * s;
+      forearm.position.y = -0.11 * s;
       forearm.castShadow = true;
-      armPivot.add(forearm);
+      elbowPivot.add(forearm);
 
       // Hand
       const hand = new THREE.Mesh(
         new THREE.SphereGeometry(0.028 * s, 6, 6), skinMat
       );
-      hand.position.y = -0.47 * s;
-      armPivot.add(hand);
+      hand.position.y = -0.22 * s;
+      elbowPivot.add(hand);
 
       const isRacketArm = (this.handedness === 'right' && side === -1) ||
                            (this.handedness === 'left' && side === 1);
-      this.bodyParts[isRacketArm ? 'racketArm' : 'freeArm'] = armPivot;
+      const sideKey = isRacketArm ? 'racketArm' : 'freeArm';
+      this.bodyParts[sideKey] = shoulderPivot;
+      this.bodyParts[sideKey + 'Elbow'] = elbowPivot;
 
-      this.group.add(armPivot);
+      this.group.add(shoulderPivot);
 
-      // Racket (on racket arm only)
+      // Racket (on racket arm only — attached to elbow pivot / hand)
       if (isRacketArm) {
         const racketGroup = new THREE.Group();
-        racketGroup.position.y = -0.47 * s;
+        racketGroup.position.y = -0.22 * s;
 
         // Handle (grip)
         const grip = new THREE.Mesh(
@@ -832,7 +846,7 @@ class Player {
         strings.position.y = -0.37;
         racketGroup.add(strings);
 
-        armPivot.add(racketGroup);
+        elbowPivot.add(racketGroup);
         this.bodyParts.racket = racketGroup;
       }
     }
@@ -1039,89 +1053,110 @@ class Player {
     this.group.position.set(this.position.x, this.groundOffset, this.position.z);
     this.group.rotation.y = this.facingAngle;
 
-    // Walk cycle
+    // Walk cycle with knee and elbow bending
     if (this.isMoving) {
       this.walkCycle += dt * 10;
-      const swing = Math.sin(this.walkCycle) * 0.4;
-      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = swing;
-      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -swing;
-      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 - swing * 0.3;
+      const hipSwing = Math.sin(this.walkCycle) * 0.45;
+      // Knees bend when leg swings back (positive rotation = backward)
+      // Knee only bends forward (positive x), max bend when hip is at peak back swing
+      const leftKneeBend = Math.max(0, Math.sin(this.walkCycle)) * 0.7;
+      const rightKneeBend = Math.max(0, -Math.sin(this.walkCycle)) * 0.7;
+
+      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = hipSwing;
+      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -hipSwing;
+      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = leftKneeBend;
+      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = rightKneeBend;
+
+      // Free arm swings opposite to legs, elbow bends on backswing
+      if (this.bodyParts.freeArm) {
+        this.bodyParts.freeArm.rotation.x = -0.4 - hipSwing * 0.4;
+      }
+      if (this.bodyParts.freeArmElbow) {
+        const elbowBend = Math.max(0, Math.sin(this.walkCycle)) * 0.5 + 0.3;
+        this.bodyParts.freeArmElbow.rotation.x = -elbowBend;
+      }
     } else {
-      // Idle sway
+      // Idle: slight athletic stance with bent knees (ready position)
       this.walkCycle += dt * 2;
       const sway = Math.sin(this.walkCycle) * 0.03;
       if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = sway;
       if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -sway;
-      // Free arm at relaxed ready position (slightly raised for balance)
+      // Slight knee bend for ready stance
+      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = 0.15;
+      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = 0.15;
+      // Free arm relaxed with slight elbow bend
       if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 + sway;
+      if (this.bodyParts.freeArmElbow) this.bodyParts.freeArmElbow.rotation.x = -0.4;
     }
 
-    // Racket arm: ready position + swing animation
+    // Racket arm: ready position + swing animation (shoulder + elbow)
     const arm = this.bodyParts.racketArm;
+    const elbow = this.bodyParts.racketArmElbow;
     if (arm) {
-      // Ready position: racket arm raised to ~chest/head level
-      // Front players hold higher (net intercept), back players at mid-body
       const isFront = this.role === 'front';
-      const readyX = isFront ? -1.2 : -0.7;   // arm angle: negative = raised forward/up
-      const readyZ = 0.1;                       // slight outward
-      // Subtle idle bob
+      const readyX = isFront ? -1.2 : -0.7;   // shoulder angle
+      const readyZ = 0.1;
+      const readyElbow = isFront ? -0.8 : -0.5; // elbow bend in ready position
       const bob = Math.sin(this.walkCycle * 1.5) * 0.05;
 
       if (this.swingPhase >= 0) {
-        // Active swing animation
         this.swingPhase += dt * 5;
         if (this.swingPhase > 1) {
-          this.swingPhase = -1; // swing done, return to ready
+          this.swingPhase = -1;
         } else {
           const t = this.swingPhase;
           if (this.swingType === 'smash' || this.swingType === 'clear' || this.swingType === 'serve_flick' || this.swingType === 'serve_high') {
-            // Overhead swing: arm raises straight up behind head → snaps forward over the top
-            // rotation.x: 0=down, -PI/2=horizontal forward, -PI=straight up, beyond -PI=behind head
+            // Overhead: shoulder raises, elbow cocks back then snaps forward
             if (t < 0.3) {
-              // Wind-up: arm raises up and back behind head
               const wind = t / 0.3;
-              arm.rotation.x = readyX + (-Math.PI * 1.15 - readyX) * wind; // past vertical, behind head
+              arm.rotation.x = readyX + (-Math.PI * 1.15 - readyX) * wind;
               arm.rotation.z = wind * 0.3;
+              if (elbow) elbow.rotation.x = readyElbow + (-1.8 - readyElbow) * wind; // elbow cocks back
             } else if (t < 0.5) {
-              // Strike: explosive snap from behind head, over the top, to contact point above head
               const strike = (t - 0.3) / 0.2;
-              arm.rotation.x = -Math.PI * 1.15 + Math.PI * 0.35 * strike; // swing forward to ~-PI*0.8 (above head)
+              arm.rotation.x = -Math.PI * 1.15 + Math.PI * 0.35 * strike;
               arm.rotation.z = 0.3 - strike * 0.15;
+              if (elbow) elbow.rotation.x = -1.8 + 1.8 * strike; // elbow snaps straight (pronation)
             } else {
-              // Follow through: arm continues forward and down
               const follow = (t - 0.5) / 0.5;
-              arm.rotation.x = -Math.PI * 0.8 + Math.PI * 0.9 * follow; // swing down to ~+0.1
+              arm.rotation.x = -Math.PI * 0.8 + Math.PI * 0.9 * follow;
               arm.rotation.z = 0.15 * (1 - follow);
+              if (elbow) elbow.rotation.x = -0.3 * (1 - follow) + readyElbow * follow; // return to ready
             }
           } else if (this.swingType === 'drop' || this.swingType === 'net' || this.swingType === 'serve_short') {
-            // Gentle forward push/tap
+            // Gentle push: small elbow extension
             const push = Math.sin(t * Math.PI);
             arm.rotation.x = readyX - push * 0.5;
             arm.rotation.z = readyZ + push * 0.25;
+            if (elbow) elbow.rotation.x = readyElbow + push * 0.4; // slight extension
           } else if (this.swingType === 'lift') {
-            // Underhand scoop: arm goes down then flicks up
+            // Underhand scoop: arm drops, elbow extends, then flicks up
             if (t < 0.4) {
               const down = t / 0.4;
-              arm.rotation.x = readyX + (0.3 - readyX) * down; // arm drops
+              arm.rotation.x = readyX + (0.3 - readyX) * down;
               arm.rotation.z = readyZ;
+              if (elbow) elbow.rotation.x = readyElbow + (0.2 - readyElbow) * down; // straighten for scoop
             } else {
               const up = (t - 0.4) / 0.6;
-              arm.rotation.x = 0.3 - Math.PI * 0.8 * up; // flick upward
+              arm.rotation.x = 0.3 - Math.PI * 0.8 * up;
               arm.rotation.z = readyZ + up * 0.2;
+              if (elbow) elbow.rotation.x = 0.2 - 1.2 * up; // flick wrist/forearm up
             }
           } else {
-            // Drive: side swing
+            // Drive: side swing with elbow snap
             const side = Math.sin(t * Math.PI);
             arm.rotation.x = readyX - side * 0.3;
             arm.rotation.z = readyZ - side * 1.0;
+            if (elbow) elbow.rotation.x = readyElbow - side * 0.6; // extend on contact
           }
         }
       }
 
-      // If not swinging, hold ready position with idle bob
+      // Ready position with idle bob
       if (this.swingPhase < 0) {
         arm.rotation.x = readyX + bob;
         arm.rotation.z = readyZ;
+        if (elbow) elbow.rotation.x = readyElbow + bob * 0.5;
       }
     }
 
