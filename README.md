@@ -52,6 +52,10 @@ Based on standard mixed doubles rotation principles:
 
 https://alexey-bass.github.io/badminton-rotation/
 
+## Author
+
+[Alexey Bass](https://www.linkedin.com/in/alexeybass/)
+
 ## License
 
-MIT
+MIT &copy; 2026 Alexey Bass
