@@ -1137,37 +1137,63 @@ class Shuttlecock {
   constructor() {
     this.group = new THREE.Group();
 
-    // Cork base
-    const corkGeo = new THREE.SphereGeometry(0.025, 8, 8);
-    const corkMat = new THREE.MeshStandardMaterial({ color: 0xfaf0d0, roughness: 0.3 });
+    // Scale up 3x for visibility
+    const S = 3.0;
+
+    // Cork base — bright yellow/neon for visibility
+    const corkGeo = new THREE.SphereGeometry(0.03 * S, 10, 10);
+    const corkMat = new THREE.MeshStandardMaterial({
+      color: 0xffd000, roughness: 0.3, emissive: 0xaa8800, emissiveIntensity: 0.3
+    });
     const cork = new THREE.Mesh(corkGeo, corkMat);
     this.group.add(cork);
 
-    // Feather skirt
-    const skirtGeo = new THREE.ConeGeometry(0.04, 0.06, 8, 1, true);
+    // Feather skirt — individual feathers fanning out
+    const featherCount = 12;
+    const featherMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.5, side: THREE.DoubleSide
+    });
+    for (let i = 0; i < featherCount; i++) {
+      const angle = (i / featherCount) * Math.PI * 2;
+      // Each feather is a thin tapered plane
+      const fGeo = new THREE.CylinderGeometry(0.002 * S, 0.018 * S, 0.08 * S, 4);
+      const feather = new THREE.Mesh(fGeo, featherMat);
+      feather.position.set(
+        Math.cos(angle) * 0.025 * S,
+        0.06 * S,
+        Math.sin(angle) * 0.025 * S
+      );
+      // Tilt feathers outward
+      feather.rotation.x = Math.sin(angle) * 0.3;
+      feather.rotation.z = -Math.cos(angle) * 0.3;
+      this.group.add(feather);
+    }
+
+    // Skirt cone (connecting feathers)
+    const skirtGeo = new THREE.ConeGeometry(0.05 * S, 0.07 * S, 12, 1, true);
     const skirtMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide
+      color: 0xf0f0f0, transparent: true, opacity: 0.5, side: THREE.DoubleSide
     });
     const skirt = new THREE.Mesh(skirtGeo, skirtMat);
-    skirt.position.y = 0.04;
+    skirt.position.y = 0.05 * S;
     this.group.add(skirt);
 
     // Trail
     this.trailPositions = [];
-    this.maxTrailLength = 50;
+    this.maxTrailLength = 60;
     const trailGeo = new THREE.BufferGeometry();
     const trailPositions = new Float32Array(this.maxTrailLength * 3);
     trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
     const trailMat = new THREE.LineBasicMaterial({
-      color: 0xf59e0b, transparent: true, opacity: 0.4
+      color: 0xffd000, transparent: true, opacity: 0.6
     });
     this.trail = new THREE.Line(trailGeo, trailMat);
     scene.add(this.trail);
 
-    // Glow
-    const glowGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    // Glow — larger, brighter
+    const glowGeo = new THREE.SphereGeometry(0.15, 12, 12);
     const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xf59e0b, transparent: true, opacity: 0.2
+      color: 0xffdd00, transparent: true, opacity: 0.25
     });
     const glow = new THREE.Mesh(glowGeo, glowMat);
     this.group.add(glow);
