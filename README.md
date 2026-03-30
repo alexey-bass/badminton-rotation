@@ -48,6 +48,10 @@ Based on standard mixed doubles rotation principles:
 | Short serve | Attack (server stays front) | Defense |
 | Flick / High serve | Defense (conceded attack) | Attack |
 
+## Live Demo
+
+https://alexey-bass.github.io/badminton-rotation/
+
 ## License
 
 MIT

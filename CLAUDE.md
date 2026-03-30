@@ -2,6 +2,7 @@
 
 ## Rules
 - Always update this CLAUDE.md when something is added or changed in the project.
+- Always update README.md with relevant user-facing changes.
 
 ## What This Is
 A single-file browser app (`index.html`) that visualizes badminton mixed doubles rotation patterns in 3D. Built to help players understand attack/defense formations and court movement.
