@@ -1466,12 +1466,17 @@ class RallyEngine {
       this._servePositions[this._serveHitterIdx === 0 ? 1 : 0] = [partnerX, partnerZ];
       this._servePositions[2] = [receiverX, receiverZ];
       this._servePositions[3] = [recPartnerX, recPartnerZ];
+      // Receiver: the player in the diagonal service box (closest to receiverX/Z)
+      this._serveReceiverIdx = 2; // B's front player receives when even score, back when odd
     } else {
       this._servePositions[this._serveHitterIdx] = [serverX, serverZ];
       this._servePositions[this._serveHitterIdx === 2 ? 3 : 2] = [partnerX, partnerZ];
       this._servePositions[0] = [receiverX, receiverZ];
       this._servePositions[1] = [recPartnerX, recPartnerZ];
+      this._serveReceiverIdx = 0; // A's front player receives
     }
+    // Pick the actual receiver: the one placed at receiverX/Z (diagonal box)
+    this._firstReturnDone = false;
 
     for (let i = 0; i < 4; i++) {
       const pos = this._servePositions[i];
@@ -1797,10 +1802,16 @@ class RallyEngine {
       return false; // rally over
     }
 
-    // Determine receiver: closest to where shuttle landed
+    // Determine who hits: first return after serve is always the designated receiver
     const lastTarget = this.shuttle.endPos;
     const recvTeam = lastTarget.z > 0 ? 'B' : 'A';
-    const hitterIdx = this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
+    let hitterIdx;
+    if (!this._firstReturnDone) {
+      hitterIdx = this._serveReceiverIdx;
+      this._firstReturnDone = true;
+    } else {
+      hitterIdx = this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
+    }
     const hitter = this.players[hitterIdx];
 
     // Choose shot based on current formation and role
