@@ -840,13 +840,37 @@ class Player {
     const teamColor = this.team === 'A' ? 0x3b82f6 : 0xef4444;
     const impulseColor = this.team === 'A' ? 0x60a5fa : 0xfca5a5;
 
-    // Direct reach: arm length + racket ≈ 1.0m radius from body center
-    const directRadius = 1.0;
-    // Impulse reach: one lunge step ≈ 1.8m additional
-    const impulseRadius = 2.8;
+    // Asymmetric reach: wider on racket side, shorter on backhand side
+    // Direct: racket side ~1.2m, backhand ~0.7m, forward/back ~0.9m
+    // Impulse: racket side ~3.2m, backhand ~2.2m, forward/back ~2.8m
 
-    // Impulse zone (larger, drawn first / below)
-    const impulseGeo = new THREE.CircleGeometry(impulseRadius, 48);
+    // Use a custom egg/teardrop shape via ShapeGeometry
+    this._makeReachShape = (rSide, rOpp, rFwd, rBack, segments) => {
+      const shape = new THREE.Shape();
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        // Vary radius by angle: 0=forward(+Z local), PI/2=racket side, PI=back, 3PI/2=backhand
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        // Blend radii based on direction
+        const rX = sin > 0 ? rSide : rOpp;     // left/right asymmetry
+        const rZ = cos > 0 ? rFwd : rBack;     // front/back
+        const r = 1.0 / Math.sqrt((cos*cos)/(rZ*rZ) + (sin*sin)/(rX*rX));
+        const x = Math.sin(angle) * r;
+        const y = Math.cos(angle) * r;
+        if (i === 0) shape.moveTo(x, y);
+        else shape.lineTo(x, y);
+      }
+      shape.closePath();
+      return new THREE.ShapeGeometry(shape, 1);
+    };
+
+    // Racket side multiplier: right-handed → side=-1 in model space
+    // but which world side depends on facing. We'll rotate the zone each frame.
+    this._racketSideSign = this.handedness === 'right' ? -1 : 1;
+
+    // Impulse zone
+    const impulseGeo = this._makeReachShape(3.2, 2.2, 2.8, 2.5, 48);
     const impulseMat = new THREE.MeshBasicMaterial({
       color: impulseColor, transparent: true, opacity: reachOpacity * 0.6,
       side: THREE.DoubleSide, depthWrite: false
@@ -857,8 +881,8 @@ class Player {
     this.impulseZone.visible = false;
     scene.add(this.impulseZone);
 
-    // Direct reach zone (smaller, on top)
-    const directGeo = new THREE.CircleGeometry(directRadius, 32);
+    // Direct reach zone
+    const directGeo = this._makeReachShape(1.2, 0.7, 0.95, 0.85, 32);
     const directMat = new THREE.MeshBasicMaterial({
       color: teamColor, transparent: true, opacity: reachOpacity,
       side: THREE.DoubleSide, depthWrite: false
@@ -876,9 +900,16 @@ class Player {
     this.impulseZone.visible = show;
     if (!show) return;
 
-    // Follow player position on the floor
+    // Follow player position
     this.directZone.position.set(this.position.x, 0.03, this.position.z);
     this.impulseZone.position.set(this.position.x, 0.02, this.position.z);
+
+    // Rotate zones to match player facing + racket side
+    // The shape is built with +sin = racket side. We need to rotate it:
+    // facingAngle + offset so racket side aligns with the correct world direction
+    const rackOffset = this._racketSideSign > 0 ? 0 : Math.PI;
+    this.directZone.rotation.z = -(this.facingAngle + rackOffset);
+    this.impulseZone.rotation.z = -(this.facingAngle + rackOffset);
 
     // Update opacity
     this.directZone.material.opacity = reachOpacity;

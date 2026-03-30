@@ -98,11 +98,12 @@ Light theme throughout:
 
 ## Reach Zones
 Each player has two floor-projected circles showing their coverage area:
-- **Direct reach** (solid team color, ~1.0m radius): area reachable by arm+racket without moving feet
-- **Impulse reach** (lighter team color, ~2.8m radius): area reachable with one lunge step
+- **Direct reach** (solid team color): asymmetric egg shape — wider on racket side (~1.2m), shorter on backhand (~0.7m)
+- **Impulse reach** (lighter team color): asymmetric — racket side ~3.2m, backhand ~2.2m
+- Zones rotate with player facing direction, racket side determined by handedness
 - Toggle on/off via checkbox in bottom controls bar
 - Opacity slider (0.05–0.5) to adjust visibility; impulse zone is at 60% of the set opacity
-- Zones follow player position each frame; rendered as flat circles on the court surface (`depthWrite: false`)
+- Custom `ShapeGeometry` with per-angle radius blending for smooth asymmetric shape
 
 ## UI Controls
 - Play/Pause button
