@@ -5,6 +5,14 @@
 - Always update README.md with relevant user-facing changes.
 - Before committing, always verify both CLAUDE.md and README.md are up to date with the changes.
 
+## Reference Docs
+Badminton doubles training guides used as source of truth for simulation rules:
+- `1-TACTICS.md` — strategy, tempo control, targeting, communication
+- `2-FORMATIONS.md` — attack/defense formations, rotation rules, follow-the-shuttle
+- `3-FOOTWORK.md` — split step, lunge, shuffle, scissor kick, base positions
+- `4-SERVES.md` — 4 serve types, hand signals, return positioning
+- `5-HITS.md` — all shot types, priorities, deception
+
 ## What This Is
 A single-file browser app (`index.html`) that visualizes badminton mixed doubles rotation patterns in 3D. Built to help players understand attack/defense formations and court movement.
 
