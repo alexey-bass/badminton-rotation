@@ -138,28 +138,28 @@ export class Player {
     }
 
     if (this.gender === 'male') {
-      // Short hair — use a hemisphere shifted back so forehead/face is exposed
+      // Short hair — slightly larger than skull, shifted just a bit back
       const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.138 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hairMat);
-      hairTop.position.set(0, 0.03 * s, -0.04 * s); // shift back to expose forehead
+        new THREE.SphereGeometry(0.14 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), hairMat);
+      hairTop.position.set(0, 0.02 * s, -0.02 * s);
       headGroup.add(hairTop);
     } else {
-      // Female hair — hemisphere shifted back + longer hair in back
+      // Female hair — slightly larger, shifted back, plus back hair
       const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.145 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), hairMat);
-      hairTop.position.set(0, 0.03 * s, -0.04 * s); // shift back
+        new THREE.SphereGeometry(0.147 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hairMat);
+      hairTop.position.set(0, 0.02 * s, -0.02 * s);
       headGroup.add(hairTop);
 
-      // Back hair flowing down behind head
+      // Back hair flowing down
       const hairBack = new THREE.Mesh(
         new THREE.CylinderGeometry(0.1 * s, 0.06 * s, 0.15 * s, 8), hairMat);
-      hairBack.position.set(0, -0.07 * s, -0.08 * s);
+      hairBack.position.set(0, -0.07 * s, -0.07 * s);
       headGroup.add(hairBack);
 
       // Ponytail
       const ponytail = new THREE.Mesh(
         new THREE.CylinderGeometry(0.03 * s, 0.015 * s, 0.2 * s, 6), hairMat);
-      ponytail.position.set(0, -0.18 * s, -0.1 * s);
+      ponytail.position.set(0, -0.18 * s, -0.09 * s);
       ponytail.rotation.x = 0.3;
       headGroup.add(ponytail);
     }
