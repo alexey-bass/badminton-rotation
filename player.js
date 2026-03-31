@@ -137,42 +137,7 @@ export class Player {
       headGroup.add(ear);
     }
 
-    // Hair: sphere slightly larger than skull, SAME center, using phi to skip the front face
-    // In Three.js SphereGeometry: phi=0 is +Z direction (face), phi goes around Y axis
-    // By starting phi past the face and wrapping around back/sides, the forehead stays exposed
-    if (this.gender === 'male') {
-      // Short hair: skip front 100° (0.28π each side), cover top 52% of sphere
-      const hair = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14 * s, 16, 10,
-          Math.PI * 0.78,       // phiStart: +90° rotated to skip face
-          Math.PI * 1.44,       // phiLength: 260° coverage
-          0,
-          Math.PI * 0.52
-        ), hairMat);
-      headGroup.add(hair);
-    } else {
-      const hair = new THREE.Mesh(
-        new THREE.SphereGeometry(0.135 * s, 16, 10,
-          Math.PI * 0.72,       // +90° rotated
-          Math.PI * 1.56,       // 280° coverage
-          0,
-          Math.PI * 0.58
-        ), hairMat);
-      headGroup.add(hair);
-
-      // Back hair flowing down behind head
-      const hairBack = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.09 * s, 0.05 * s, 0.14 * s, 8), hairMat);
-      hairBack.position.set(0, -0.08 * s, -0.08 * s);
-      headGroup.add(hairBack);
-
-      // Ponytail
-      const ponytail = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.03 * s, 0.015 * s, 0.2 * s, 6), hairMat);
-      ponytail.position.set(0, -0.18 * s, -0.09 * s);
-      ponytail.rotation.x = 0.3;
-      headGroup.add(ponytail);
-    }
+    // Hair removed — bald for now
 
     this.group.add(headGroup);
     this.bodyParts.head = headGroup;
