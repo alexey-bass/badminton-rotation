@@ -1266,14 +1266,6 @@ class Shuttlecock {
     this.trail = new THREE.Line(trailGeo, trailMat);
     scene.add(this.trail);
 
-    // Glow — larger, brighter
-    const glowGeo = new THREE.SphereGeometry(0.15, 12, 12);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xffdd00, transparent: true, opacity: 0.25
-    });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
-    this.group.add(glow);
-    this.glow = glow;
 
     this.group.castShadow = true;
     scene.add(this.group);
@@ -1398,9 +1390,6 @@ class Shuttlecock {
       const dir = nextPos.sub(pos).normalize();
       this.group.lookAt(this.group.position.clone().add(dir));
     }
-
-    // Glow pulse
-    this.glow.material.opacity = 0.15 + Math.sin(Date.now() * 0.01) * 0.1;
 
     // Trail
     this.trailPositions.push(pos.clone());
