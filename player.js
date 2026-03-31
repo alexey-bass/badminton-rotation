@@ -152,7 +152,7 @@ export class Player {
       headGroup.add(hair);
     } else {
       const hair = new THREE.Mesh(
-        new THREE.SphereGeometry(0.145 * s, 16, 10,
+        new THREE.SphereGeometry(0.135 * s, 16, 10,
           Math.PI * 0.72,       // +90° rotated
           Math.PI * 1.56,       // 280° coverage
           0,
