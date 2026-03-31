@@ -520,6 +520,9 @@ class Player {
 
     this.swingPhase = -1; // -1 = not swinging, 0..1 = swing progress
     this.swingType = 'clear';
+    this.jumpPhase = -1;  // -1 = not jumping, 0..1 = jump progress
+    this.jumpHeight = 0;
+    this.jumpDuration = 0.5;
     this.facingAngle = 0;
     this.targetFacingAngle = 0;
     this.walkCycle = 0;
@@ -1035,6 +1038,19 @@ class Player {
   startSwing(type) {
     this.swingPhase = 0;
     this.swingType = type;
+
+    // Jump for overhead shots (smash, clear, flick/high serve)
+    if (type === 'smash' || type === 'clear' || type === 'serve_flick' || type === 'serve_high') {
+      this.jumpPhase = 0;
+      this.jumpHeight = type === 'smash' ? 0.35 : 0.25; // smash jumps higher
+      this.jumpDuration = 0.5;
+    }
+    // Small hop for intercepts at net (net kill)
+    else if (type === 'net' && this.role === 'front') {
+      this.jumpPhase = 0;
+      this.jumpHeight = 0.12;
+      this.jumpDuration = 0.3;
+    }
   }
 
   update(dt) {
@@ -1063,7 +1079,20 @@ class Player {
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     this.facingAngle += angleDiff * Math.min(1, 8 * dt);
 
-    this.group.position.set(this.position.x, this.groundOffset, this.position.z);
+    // Jump physics
+    let jumpY = 0;
+    if (this.jumpPhase >= 0) {
+      this.jumpPhase += dt / this.jumpDuration;
+      if (this.jumpPhase > 1) {
+        this.jumpPhase = -1;
+      } else {
+        // Parabolic arc: peak at t=0.4 (jump up fast, hang, come down)
+        const t = this.jumpPhase;
+        jumpY = this.jumpHeight * 4 * t * (1 - t); // parabola, peak at t=0.5
+      }
+    }
+
+    this.group.position.set(this.position.x, this.groundOffset + jumpY, this.position.z);
     this.group.rotation.y = this.facingAngle;
 
     // Head tracks shuttlecock
