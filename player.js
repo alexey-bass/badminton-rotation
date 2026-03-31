@@ -138,18 +138,33 @@ export class Player {
     }
 
     if (this.gender === 'male') {
+      // Short hair — cap on top, not covering forehead/eyes
       const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.135 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
+        new THREE.SphereGeometry(0.135 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), hairMat);
       hairTop.scale.set(1.02, 1.0, 0.97);
-      hairTop.position.y = 0.02 * s;
-      headGroup.add(hairTop);
-    } else {
-      const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
-      hairTop.scale.set(1.04, 1.0, 1.0);
-      hairTop.position.y = 0.02 * s;
+      hairTop.position.set(0, 0.02 * s, -0.01 * s); // shift slightly back
       headGroup.add(hairTop);
 
+      // Side/back hair coverage (lower, wraps around back of head)
+      const hairBack = new THREE.Mesh(
+        new THREE.SphereGeometry(0.136 * s, 12, 8, Math.PI * 0.25, Math.PI * 1.5, 0, Math.PI * 0.5), hairMat);
+      hairBack.position.set(0, 0.02 * s, -0.01 * s);
+      headGroup.add(hairBack);
+    } else {
+      // Female hair — top cap, not covering forehead
+      const hairTop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), hairMat);
+      hairTop.scale.set(1.04, 1.0, 1.0);
+      hairTop.position.set(0, 0.02 * s, -0.01 * s);
+      headGroup.add(hairTop);
+
+      // Back/side hair flowing down
+      const hairBack = new THREE.Mesh(
+        new THREE.SphereGeometry(0.141 * s, 12, 8, Math.PI * 0.2, Math.PI * 1.6, 0, Math.PI * 0.55), hairMat);
+      hairBack.position.set(0, 0.01 * s, -0.01 * s);
+      headGroup.add(hairBack);
+
+      // Ponytail
       const ponytail = new THREE.Mesh(
         new THREE.CylinderGeometry(0.03 * s, 0.015 * s, 0.2 * s, 6), hairMat);
       ponytail.position.set(0, -0.12 * s, -0.1 * s);
