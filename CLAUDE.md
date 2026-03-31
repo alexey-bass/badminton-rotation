@@ -43,6 +43,13 @@ Rallies are generated dynamically shot-by-shot using real badminton rotation rul
 - **Lift/Clear (CONCEDE ATTACK)**: hitting team → immediate defense (side by side). Receiving team → attack.
 - **Drive**: neutral, keep current formation.
 
+**Reaction delay**: Receiving team doesn't move instantly — delay varies by shot speed:
+- Smash: 0.12s, Drive: 0.15s, Drop: 0.20s, Net: 0.18s, Clear: 0.30s, Lift: 0.28s
+- Hitting team positions immediately (they know their own shot)
+- Implemented via `_reactionTimer` + `_pendingRecvTeam` queued in `_applyFormations`, applied in `update()`
+
+**Head tracking**: All players' heads follow the shuttlecock position each frame (yaw ±0.8 rad, pitch clamped). Smoothly returns to neutral when shuttle inactive.
+
 **Formation positioning** (`_applyFormations`):
 - **Attack (front/back)**: front player at ~2.2m from net, shifted laterally toward shuttle side (mirrors attack). Back player at ~5.2m.
 - **Defense (side/side)**: both players at ~4m depth, split left (-1.2) / right (+1.2).
