@@ -138,16 +138,16 @@ export class Player {
     }
 
     if (this.gender === 'male') {
-      // Short hair — slightly larger than skull, shifted just a bit back
+      // Short hair — sits on skull, shifted slightly back to expose forehead
       const hairTop = new THREE.Mesh(
         new THREE.SphereGeometry(0.14 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), hairMat);
-      hairTop.position.set(0, 0.02 * s, -0.02 * s);
+      hairTop.position.set(0, 0, -0.02 * s);
       headGroup.add(hairTop);
     } else {
-      // Female hair — slightly larger, shifted back, plus back hair
+      // Female hair — on skull, shifted back, plus back hair
       const hairTop = new THREE.Mesh(
         new THREE.SphereGeometry(0.147 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hairMat);
-      hairTop.position.set(0, 0.02 * s, -0.02 * s);
+      hairTop.position.set(0, 0, -0.02 * s);
       headGroup.add(hairTop);
 
       // Back hair flowing down
