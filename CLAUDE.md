@@ -3,6 +3,7 @@
 ## Rules
 - Always update this CLAUDE.md when something is added or changed in the project.
 - Always update README.md with relevant user-facing changes.
+- Before committing, always verify both CLAUDE.md and README.md are up to date with the changes.
 
 ## What This Is
 A single-file browser app (`index.html`) that visualizes badminton mixed doubles rotation patterns in 3D. Built to help players understand attack/defense formations and court movement.
@@ -37,8 +38,7 @@ Options (dependency injection):
 ### Key Classes
 - **`Player`** (in player.js) — Detailed 3D humanoid model with visible face (eyes, nose, mouth, ears), hair (short for male, ponytail for female), articulated arms (shoulder, upper arm, elbow, forearm, hand), articulated legs (thigh, knee, shin, ankle, shoe with team-colored stripe), two-part torso (chest + waist), neck. Movement interpolation, swing animations, floating name label. Properties: name, gender, team (A/B), handedness (left/right), role (front/back)
 - **`Shuttlecock`** — cork+feather model with glow, cubic bezier trajectory (4-point, guarantees net clearance), trail effect
-- **`RallyEngine`** — orchestrates rallies. Generates shot sequences from 6 choreographed patterns, moves players, triggers swings, updates formation display
-- **`FormationIndicator`** — colored circles on court showing attack (front/back zones) or defense (side/side zones)
+- **`RallyEngine`** — orchestrates rallies dynamically using rule-based rotation engine, manages serve flow and formation transitions
 
 ### Dynamic Rally Engine (rule-based, no hardcoded patterns)
 Rallies are generated dynamically shot-by-shot using real badminton rotation rules.
@@ -63,6 +63,18 @@ Rallies are generated dynamically shot-by-shot using real badminton rotation rul
 - Implemented via `_reactionTimer` + `_pendingRecvTeam` queued in `_applyFormations`, applied in `update()`
 
 **Head tracking**: All players' heads follow the shuttlecock position each frame (yaw ±0.8 rad, pitch clamped). Smoothly returns to neutral when shuttle inactive.
+
+**Body orientation rules**:
+- When moving, body always faces the net (not the movement direction). This matches real badminton footwork — players shuffle sideways/backwards while keeping eyes and body oriented toward the net.
+- Head independently tracks the shuttlecock regardless of body direction.
+
+**Footwork state machine** (`footworkState` in Player): 4 states with automatic transitions:
+- **`ready`**: Athletic crouch — knees bent 0.25 rad, weight on balls of feet, subtle bounce (sin wave). Triggered when idle (not moving, not lunging/split stepping).
+- **`splitStep`**: Small hop (0.06m) triggered automatically when transitioning from idle to moving. Both legs splay outward, knees bend on landing. Duration ~0.17s (phase speed dt*6). Transitions to `moving` when complete.
+- **`moving`**: Badminton shuffle — faster cadence (dt*12), shorter quicker steps than jogging. Hip swing 0.35 rad, knee lift 0.55 rad. Arms pump lightly. Leg Z-rotation reset (from split step splay).
+- **`lunging`**: Deep forward step triggered when swinging net/drop/lift/drive/serve_short shots (not overhead). Front leg: -0.9 hip + 1.2 knee bend. Back leg: +0.6 hip + 0.15 knee (nearly straight). Body (torso) leans forward 0.15 rad. Free arm extends back for balance. Duration ~0.33s (phase speed dt*3). Smooth in-out curve (accelerate → hold → recover).
+
+**Transitions**: `ready` → (starts moving) → `splitStep` → `moving` → (stops) → `ready`. Lunge triggered independently by `startSwing()` for applicable shot types. Torso lean recovers smoothly (×0.85 decay) when not lunging.
 
 **Formation positioning** (`_applyFormations`):
 - **Attack (front/back)**: front player at ~2.2m from net, shifted laterally toward shuttle side (mirrors attack). Back player at ~5.2m.

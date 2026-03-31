@@ -859,10 +859,9 @@ class RallyEngine {
     }
 
     const hitter = this.players[this._serveHitterIdx];
-    hitter.startSwing(shotType);
-
     const fromPos = new THREE.Vector3(hitter.position.x, 1.1, hitter.position.z);
     const toPos = new THREE.Vector3(targetX, targetY, targetZ);
+    hitter.startSwing(shotType, fromPos);
     this.shuttle.setTrajectory(fromPos, toPos, shotType, duration);
 
     // After serve: short serve → server stays front (attack), flick/high → defense
@@ -1236,12 +1235,12 @@ class RallyEngine {
     // Position hitting team immediately, receiving team after reaction delay
     this._applyFormations(target.x, target.z, hitterIdx, shotType);
 
-    // Hitter swings
-    hitter.startSwing(shotType);
-
     // Launch shuttle
     const fromPos = new THREE.Vector3(hitter.position.x, target.hitY, hitter.position.z);
     const toPos = new THREE.Vector3(target.x, target.y, target.z);
+
+    // Hitter swings toward the shuttle contact point
+    hitter.startSwing(shotType, fromPos);
     const duration = this._shotDuration(shotType);
     this.shuttle.setTrajectory(fromPos, toPos, shotType, duration);
 
@@ -1300,7 +1299,7 @@ class RallyEngine {
         const receiverIdx = this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
         // Determine what shot the receiver will play (peek ahead)
         const nextShot = this._chooseShot(receiverIdx);
-        this.players[receiverIdx].startSwing(nextShot);
+        this.players[receiverIdx].startSwing(nextShot, this.shuttle.endPos);
         this._preSwungReceiver = true;
         this._preSwungShotType = nextShot;
         this._preSwungIdx = receiverIdx;

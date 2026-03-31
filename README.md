@@ -6,7 +6,8 @@
 
 - **3D court** with real BWF dimensions, singles + doubles lines, net with posts
 - **Detailed player models** — visible face direction, articulated arms/legs, rackets, team colors
-- **Players track the shuttlecock** — all heads follow the bird in flight
+- **Players track the shuttlecock** — all heads follow the bird in flight, racket aims at contact point
+- **Realistic footwork** — split step on movement start, badminton shuffle (body always faces net), lunges for net/drop shots, athletic ready stance
 - **Realistic reaction delays** — receiving team reacts slower to smashes (0.12s) vs clears (0.30s)
 - **Dynamic rotation engine** — rule-based rally generation (not scripted), implements real badminton rotation principles:
   - Follow the shuttle (drop → hitter follows forward, partner rotates back)

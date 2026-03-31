@@ -49,6 +49,13 @@ export class Player {
     this.walkCycle = 0;
     this.isMoving = false;
 
+    // Footwork state machine
+    this.footworkState = 'ready'; // ready, splitStep, moving, lunging
+    this.splitStepPhase = -1;     // 0..1 for split step hop
+    this.lungePhase = -1;         // 0..1 for lunge animation
+    this.lungeSide = 1;           // 1=right foot forward, -1=left
+    this._prevMoving = false;     // track state transitions
+
     // Tunable options
     this._getShuttlecock = options.getShuttlecock || null;
     this._getCamera = options.getCamera || null;
@@ -485,9 +492,12 @@ export class Player {
     this.group.position.set(x, this.groundOffset, z);
   }
 
-  startSwing(type) {
+  startSwing(type, shuttleWorldPos) {
     this.swingPhase = 0;
     this.swingType = type;
+
+    // Store shuttle contact position for aiming the racket
+    this._swingTarget = shuttleWorldPos ? shuttleWorldPos.clone() : null;
 
     if (type === 'smash' || type === 'clear' || type === 'serve_flick' || type === 'serve_high') {
       this.jumpPhase = 0;
@@ -514,13 +524,12 @@ export class Player {
       const step = Math.min(speed * dt, dist);
       const dir = diff.normalize();
       this.position.addScaledVector(dir, step);
-      this.targetFacingAngle = Math.atan2(dir.x, dir.z);
-    } else {
-      if (this._idleFacing === 'net') {
-        const netDir = this.team === 'A' ? 1 : -1;
-        this.targetFacingAngle = netDir > 0 ? 0 : Math.PI;
-      }
-      // 'forward' → keep current facing
+    }
+
+    // Body always faces the net (badminton footwork — shuffle sideways, don't turn away)
+    if (this._idleFacing === 'net') {
+      const netDir = this.team === 'A' ? 1 : -1;
+      this.targetFacingAngle = netDir > 0 ? 0 : Math.PI;
     }
 
     // Smooth facing
@@ -529,7 +538,7 @@ export class Player {
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     this.facingAngle += angleDiff * Math.min(1, 8 * dt);
 
-    // Jump physics
+    // Jump physics (for smash/clear)
     let jumpY = 0;
     if (this.jumpPhase >= 0) {
       this.jumpPhase += dt / this.jumpDuration;
@@ -544,8 +553,46 @@ export class Player {
       }
     }
 
-    this.group.position.set(this.position.x, this.groundOffset + jumpY, this.position.z);
+    // Split step: small hop when transitioning from idle to moving
+    let splitStepY = 0;
+    if (!this._prevMoving && this.isMoving && this.splitStepPhase < 0) {
+      this.splitStepPhase = 0;
+      this.footworkState = 'splitStep';
+    }
+    if (this.splitStepPhase >= 0) {
+      this.splitStepPhase += dt * 6; // fast hop ~0.17s
+      if (this.splitStepPhase > 1) {
+        this.splitStepPhase = -1;
+        this.footworkState = 'moving';
+      } else {
+        splitStepY = 0.06 * Math.sin(this.splitStepPhase * Math.PI); // small hop
+      }
+    }
+    this._prevMoving = this.isMoving;
+
+    this.group.position.set(this.position.x, this.groundOffset + jumpY + splitStepY, this.position.z);
     this.group.rotation.y = this.facingAngle;
+
+    // Determine footwork state
+    if (!this.isMoving && this.splitStepPhase < 0 && this.lungePhase < 0) {
+      this.footworkState = 'ready';
+    } else if (this.isMoving && this.splitStepPhase < 0 && this.lungePhase < 0) {
+      this.footworkState = 'moving';
+    }
+
+    // Lunge: triggered when swinging and close to target (reaching for shuttle)
+    if (this.swingPhase >= 0 && this.swingPhase < 0.1 && this.lungePhase < 0 && this.jumpPhase < 0) {
+      const shotNeedsLunge = ['net', 'drop', 'lift', 'drive', 'serve_short'].includes(this.swingType);
+      if (shotNeedsLunge) {
+        this.lungePhase = 0;
+        this.lungeSide = Math.random() > 0.5 ? 1 : -1; // which foot leads
+        this.footworkState = 'lunging';
+      }
+    }
+    if (this.lungePhase >= 0) {
+      this.lungePhase += dt * 3; // ~0.33s lunge
+      if (this.lungePhase > 1) this.lungePhase = -1;
+    }
 
     // Head tracks shuttlecock (if available)
     const head = this.bodyParts.head;
@@ -566,34 +613,93 @@ export class Player {
       head.rotation.x *= 0.9;
     }
 
-    // Walk cycle with knee and elbow bending
-    if (this.isMoving) {
-      this.walkCycle += dt * 10;
-      const hipSwing = Math.sin(this.walkCycle) * 0.45;
-      const leftKneeBend = Math.max(0, Math.sin(this.walkCycle)) * 0.7;
-      const rightKneeBend = Math.max(0, -Math.sin(this.walkCycle)) * 0.7;
+    // =============================================
+    // FOOTWORK ANIMATIONS
+    // =============================================
+    const bp = this.bodyParts;
 
-      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = hipSwing;
-      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -hipSwing;
-      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = leftKneeBend;
-      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = rightKneeBend;
+    if (this.footworkState === 'ready') {
+      // Athletic ready stance: knees bent, weight on balls of feet, slight bounce
+      this.walkCycle += dt * 3;
+      const bounce = Math.sin(this.walkCycle * 2) * 0.02;
+      const readyKnee = 0.25; // deeper bend than before
 
-      if (this.bodyParts.freeArm) {
-        this.bodyParts.freeArm.rotation.x = -0.4 - hipSwing * 0.4;
+      if (bp.leftLeg)  bp.leftLeg.rotation.x = 0.08 + bounce;
+      if (bp.rightLeg) bp.rightLeg.rotation.x = 0.08 - bounce;
+      if (bp.leftKnee)  bp.leftKnee.rotation.x = readyKnee + bounce;
+      if (bp.rightKnee) bp.rightKnee.rotation.x = readyKnee - bounce;
+
+      // Arms: relaxed ready position, slight bounce
+      if (bp.freeArm) bp.freeArm.rotation.x = -0.4 + bounce;
+      if (bp.freeArmElbow) bp.freeArmElbow.rotation.x = -0.5;
+
+    } else if (this.footworkState === 'splitStep') {
+      // Split step: both legs spread apart, knees bend on landing
+      const t = this.splitStepPhase;
+      const spread = Math.sin(t * Math.PI) * 0.3;
+      const kneeBend = t > 0.5 ? (t - 0.5) * 2 * 0.5 : 0; // bend on landing
+
+      if (bp.leftLeg)  bp.leftLeg.rotation.x = -spread * 0.3;
+      if (bp.rightLeg) bp.rightLeg.rotation.x = spread * 0.3;
+      if (bp.leftLeg)  bp.leftLeg.rotation.z = spread; // legs splay out
+      if (bp.rightLeg) bp.rightLeg.rotation.z = -spread;
+      if (bp.leftKnee)  bp.leftKnee.rotation.x = 0.1 + kneeBend;
+      if (bp.rightKnee) bp.rightKnee.rotation.x = 0.1 + kneeBend;
+
+      if (bp.freeArm) bp.freeArm.rotation.x = -0.5;
+      if (bp.freeArmElbow) bp.freeArmElbow.rotation.x = -0.6;
+
+    } else if (this.footworkState === 'lunging') {
+      // Lunge: front leg bends deep, back leg extends
+      const t = this.lungePhase;
+      // Smooth in-out: accelerate into lunge, hold, recover
+      const lungeDepth = t < 0.4 ? (t / 0.4) : (t < 0.7 ? 1.0 : 1.0 - (t - 0.7) / 0.3);
+      const ld = lungeDepth;
+
+      const frontLeg = this.lungeSide > 0 ? 'right' : 'left';
+      const backLeg = this.lungeSide > 0 ? 'left' : 'right';
+
+      // Front leg: big step forward, deep knee bend
+      if (bp[frontLeg + 'Leg']) bp[frontLeg + 'Leg'].rotation.x = -ld * 0.9; // forward
+      if (bp[frontLeg + 'Knee']) bp[frontLeg + 'Knee'].rotation.x = ld * 1.2; // deep bend
+
+      // Back leg: extends behind, slight knee bend
+      if (bp[backLeg + 'Leg']) bp[backLeg + 'Leg'].rotation.x = ld * 0.6; // backward
+      if (bp[backLeg + 'Knee']) bp[backLeg + 'Knee'].rotation.x = ld * 0.15; // nearly straight
+
+      // Body leans forward into lunge
+      if (bp.torso) bp.torso.rotation.x = -ld * 0.15;
+
+      // Free arm back for balance
+      if (bp.freeArm) bp.freeArm.rotation.x = -0.3 + ld * 0.5;
+      if (bp.freeArmElbow) bp.freeArmElbow.rotation.x = -0.3 - ld * 0.3;
+
+    } else if (this.footworkState === 'moving') {
+      // Running/shuffling: quick steps, badminton-style (light, on toes)
+      this.walkCycle += dt * 12; // faster cadence than before
+      const hipSwing = Math.sin(this.walkCycle) * 0.35;
+      // Shorter, quicker knee lifts — badminton shuffle, not jogging
+      const leftKneeBend = Math.max(0, Math.sin(this.walkCycle)) * 0.55;
+      const rightKneeBend = Math.max(0, -Math.sin(this.walkCycle)) * 0.55;
+
+      if (bp.leftLeg) bp.leftLeg.rotation.x = hipSwing;
+      if (bp.rightLeg) bp.rightLeg.rotation.x = -hipSwing;
+      if (bp.leftLeg) bp.leftLeg.rotation.z = 0; // reset any splay from split step
+      if (bp.rightLeg) bp.rightLeg.rotation.z = 0;
+      if (bp.leftKnee) bp.leftKnee.rotation.x = leftKneeBend;
+      if (bp.rightKnee) bp.rightKnee.rotation.x = rightKneeBend;
+
+      // Arms pump lightly
+      if (bp.freeArm) bp.freeArm.rotation.x = -0.5 - hipSwing * 0.3;
+      if (bp.freeArmElbow) {
+        const elbowBend = Math.max(0, Math.sin(this.walkCycle)) * 0.4 + 0.4;
+        bp.freeArmElbow.rotation.x = -elbowBend;
       }
-      if (this.bodyParts.freeArmElbow) {
-        const elbowBend = Math.max(0, Math.sin(this.walkCycle)) * 0.5 + 0.3;
-        this.bodyParts.freeArmElbow.rotation.x = -elbowBend;
-      }
-    } else {
-      this.walkCycle += dt * 2;
-      const sway = Math.sin(this.walkCycle) * 0.03;
-      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = sway;
-      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -sway;
-      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = 0.15;
-      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = 0.15;
-      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 + sway;
-      if (this.bodyParts.freeArmElbow) this.bodyParts.freeArmElbow.rotation.x = -0.4;
+    }
+
+    // Reset torso lean when not lunging
+    if (this.footworkState !== 'lunging' && bp.torso) {
+      bp.torso.rotation.x *= 0.85; // smooth recovery
     }
 
     // Racket arm: ready position + swing animation (shoulder + elbow)
@@ -606,12 +712,25 @@ export class Player {
       const readyElbow = isFront ? -0.8 : -0.5;
       const bob = Math.sin(this.walkCycle * 1.5) * 0.05;
 
+      // Compute aim offset: rotate shoulder Y to point racket toward shuttle
+      let aimY = 0;
+      if (this._swingTarget && this.swingPhase >= 0) {
+        const localTarget = this.group.worldToLocal(this._swingTarget.clone());
+        // Yaw toward shuttle in local space (clamped)
+        aimY = Math.max(-0.6, Math.min(0.6, Math.atan2(localTarget.x, localTarget.z)));
+      }
+
       if (this.swingPhase >= 0) {
         this.swingPhase += dt * this.swingSpeed;
         if (this.swingPhase > 1) {
           this.swingPhase = -1;
+          this._swingTarget = null;
         } else {
           const t = this.swingPhase;
+          // Apply aim during active swing phases (wind-up through strike)
+          const aimBlend = t < 0.5 ? 1.0 : Math.max(0, 1.0 - (t - 0.5) / 0.5); // fade out on follow-through
+          arm.rotation.y = aimY * aimBlend;
+
           if (this.swingType === 'smash' || this.swingType === 'clear' || this.swingType === 'serve_flick' || this.swingType === 'serve_high') {
             if (t < 0.3) {
               const wind = t / 0.3;
@@ -657,6 +776,7 @@ export class Player {
 
       if (this.swingPhase < 0) {
         arm.rotation.x = readyX + bob;
+        arm.rotation.y = 0;
         arm.rotation.z = readyZ;
         if (elbow) elbow.rotation.x = readyElbow + bob * 0.5;
       }
