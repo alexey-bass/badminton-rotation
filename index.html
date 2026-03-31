@@ -1856,27 +1856,40 @@ class RallyEngine {
     this._reactionTimer = reactionDelay;
   }
 
-  _positionTeam(team, shuttleTargetX, shuttleTargetZ) {
+  _positionTeam(team, shuttleTargetX, shuttleTargetZ, isReceiving) {
     const zSign = this._zSign(team);
     const [i1, i2] = this._teamIndices(team);
     const formation = this.teamFormation[team];
 
+    // Racket reach ~1m — players should stay at least this far apart
+    const MIN_SPREAD = 1.5;
+
     if (formation === 'attack') {
       const frontIdx = this.teamFront[team];
       const backIdx = this.teamBack[team];
-      const frontShiftX = shuttleTargetX * 0.3;
-      const frontZ = zSign * 2.2;
-      const backZ = zSign * 5.2;
-      const backShiftX = shuttleTargetX * 0.15;
 
-      this.players[frontIdx].setPosition(frontShiftX, frontZ);
-      this.players[backIdx].setPosition(backShiftX, backZ);
+      // Front player: shifted toward shuttle side but not beyond center line
+      const frontX = Math.max(-HALF_W + 0.5, Math.min(HALF_W - 0.5, shuttleTargetX * 0.4));
+      const frontZ = zSign * 2.0;
+
+      // Back player: covers the OPPOSITE side from front to maximize coverage
+      const backX = -frontX * 0.6; // opposite side for court balance
+      const backZ = zSign * 5.5;
+
+      this.players[frontIdx].setPosition(frontX, frontZ);
+      this.players[backIdx].setPosition(backX, backZ);
       this.players[frontIdx].role = 'front';
       this.players[backIdx].role = 'back';
     } else {
-      const defZ = zSign * 4.0;
-      this.players[i1].setPosition(-1.2, defZ);
-      this.players[i2].setPosition(1.2, defZ);
+      // Defense: split court in half, each player covers their side
+      // Spread wider on the 6.1m court
+      const defZ = zSign * 3.8;
+      const spreadX = HALF_W - 0.6; // ~2.45m from center = good court coverage
+
+      // Position based on shuttle side — player on shuttle side is slightly forward
+      const shuttleSide = shuttleTargetX > 0 ? 1 : -1;
+      this.players[i1].setPosition(-spreadX, defZ + zSign * (shuttleSide < 0 ? -0.3 : 0.3));
+      this.players[i2].setPosition(spreadX, defZ + zSign * (shuttleSide > 0 ? -0.3 : 0.3));
       this.players[i1].role = 'back';
       this.players[i2].role = 'back';
     }
@@ -1885,14 +1898,32 @@ class RallyEngine {
   _applyReceiverPositions() {
     const team = this._pendingRecvTeam;
     if (!team) return;
+    const targetX = this._pendingTargetX;
+    const targetZ = this._pendingTargetZ;
 
-    // Position receiving team
-    this._positionTeam(team, this._pendingTargetX, this._pendingTargetZ);
+    // Find who receives
+    const receiverIdx = this._findReceiver(targetX, targetZ, team);
+    const [i1, i2] = this._teamIndices(team);
+    const partnerIdx = i1 === receiverIdx ? i2 : i1;
 
-    // Receiver moves toward shuttle landing spot
-    const receiverIdx = this._findReceiver(this._pendingTargetX, this._pendingTargetZ, team);
+    // Position the team formation first
+    this._positionTeam(team, targetX, targetZ, true);
+
+    // Override receiver: move toward shuttle but stay within their court half
     const recvZ = this._zSign(team);
-    this.players[receiverIdx].setPosition(this._pendingTargetX, this._pendingTargetZ + recvZ * 0.3);
+    this.players[receiverIdx].setPosition(targetX, targetZ + recvZ * 0.4);
+
+    // Partner covers the opposite side of the court from the receiver
+    const partnerX = -targetX * 0.7; // opposite side
+    const formation = this.teamFormation[team];
+    if (formation === 'attack') {
+      // Partner goes to back, opposite side
+      this.players[partnerIdx].setPosition(partnerX, recvZ * 5.0);
+    } else {
+      // Partner covers their half in defense
+      const partnerSideX = targetX > 0 ? -HALF_W + 0.6 : HALF_W - 0.6;
+      this.players[partnerIdx].setPosition(partnerSideX, recvZ * 3.8);
+    }
 
     this._pendingRecvTeam = null;
   }
