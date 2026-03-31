@@ -137,23 +137,35 @@ export class Player {
       headGroup.add(ear);
     }
 
+    // Hair: sphere slightly larger than skull, SAME center, using phi to skip the front face
+    // In Three.js SphereGeometry: phi=0 is +Z direction (face), phi goes around Y axis
+    // By starting phi past the face and wrapping around back/sides, the forehead stays exposed
     if (this.gender === 'male') {
-      // Short hair — sits on skull, shifted slightly back to expose forehead
-      const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.45), hairMat);
-      hairTop.position.set(0, 0, -0.02 * s);
-      headGroup.add(hairTop);
+      // Short hair: skip front 100° (0.28π each side), cover top 52% of sphere
+      const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14 * s, 16, 10,
+          Math.PI * 0.28,       // phiStart: skip front-right
+          Math.PI * 1.44,       // phiLength: wrap around back (260°)
+          0,                    // thetaStart: from top
+          Math.PI * 0.52        // thetaLength: down to just past equator
+        ), hairMat);
+      // Same center as skull — no position offset needed
+      headGroup.add(hair);
     } else {
-      // Female hair — on skull, shifted back, plus back hair
-      const hairTop = new THREE.Mesh(
-        new THREE.SphereGeometry(0.147 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hairMat);
-      hairTop.position.set(0, 0, -0.02 * s);
-      headGroup.add(hairTop);
+      // Female hair: skip front 80° (0.22π each side), cover more (58%)
+      const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.145 * s, 16, 10,
+          Math.PI * 0.22,
+          Math.PI * 1.56,       // 280° coverage
+          0,
+          Math.PI * 0.58        // lower coverage for longer look
+        ), hairMat);
+      headGroup.add(hair);
 
-      // Back hair flowing down
+      // Back hair flowing down behind head
       const hairBack = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.1 * s, 0.06 * s, 0.15 * s, 8), hairMat);
-      hairBack.position.set(0, -0.07 * s, -0.07 * s);
+        new THREE.CylinderGeometry(0.09 * s, 0.05 * s, 0.14 * s, 8), hairMat);
+      hairBack.position.set(0, -0.08 * s, -0.08 * s);
       headGroup.add(hairBack);
 
       // Ponytail
