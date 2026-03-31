@@ -1519,6 +1519,8 @@ class RallyEngine {
     this.rallyLength = 0;
     this.maxRallyLength = 8 + Math.floor(Math.random() * 8); // 8-15 shots per rally
     this._preSwungReceiver = false;
+    this._reactionTimer = 0;
+    this._pendingRecvTeam = null;
 
     this._initPositions();
   }
@@ -1654,7 +1656,7 @@ class RallyEngine {
 
     this.lastHitterIdx = this._serveHitterIdx;
     this.rallyLength = 1;
-    this._applyFormations(targetX, targetZ);
+    this._applyFormations(targetX, targetZ, this._serveHitterIdx, shotType);
     this._updateDisplay(shotType, hitter);
 
     this.shotTimer = duration;
@@ -1828,47 +1830,71 @@ class RallyEngine {
     }
   }
 
-  _applyFormations(shuttleTargetX, shuttleTargetZ) {
-    for (const team of ['A', 'B']) {
-      const zSign = this._zSign(team);
-      const [i1, i2] = this._teamIndices(team);
-      const formation = this.teamFormation[team];
+  _applyFormations(shuttleTargetX, shuttleTargetZ, hitterIdx, shotType) {
+    const hTeam = this._teamOf(hitterIdx);
+    const rTeam = this._otherTeam(hTeam);
 
-      // Find which player is the receiver (closest to shuttle target)
-      const recvTeam = (shuttleTargetZ * zSign > 0) ? team : null; // target is on this team's side?
+    // Hitting team moves immediately (they know where they're hitting)
+    this._positionTeam(hTeam, shuttleTargetX, shuttleTargetZ);
 
-      if (formation === 'attack') {
-        const frontIdx = this.teamFront[team];
-        const backIdx = this.teamBack[team];
-
-        // Front position: near the T, shifted toward the shuttle side
-        const frontShiftX = shuttleTargetX * 0.3; // lateral shift to mirror attack side
-        const frontZ = zSign * 2.2;
-        const backZ = zSign * 5.2;
-        const backShiftX = shuttleTargetX * 0.15;
-
-        this.players[frontIdx].setPosition(frontShiftX, frontZ);
-        this.players[backIdx].setPosition(backShiftX, backZ);
-        this.players[frontIdx].role = 'front';
-        this.players[backIdx].role = 'back';
-
-      } else {
-        // Defense: side by side at ~4m depth
-        const defZ = zSign * 4.0;
-        this.players[i1].setPosition(-1.2, defZ);
-        this.players[i2].setPosition(1.2, defZ);
-        this.players[i1].role = 'back';
-        this.players[i2].role = 'back';
-      }
+    // Receiving team reacts with delay — store pending positions
+    // Reaction time varies by shot speed
+    let reactionDelay;
+    switch (shotType) {
+      case 'smash':  reactionDelay = 0.12; break; // very fast, little time
+      case 'drive':  reactionDelay = 0.15; break;
+      case 'drop':   reactionDelay = 0.20; break;
+      case 'net':    reactionDelay = 0.18; break;
+      case 'clear':  reactionDelay = 0.30; break; // slow, plenty of time
+      case 'lift':   reactionDelay = 0.28; break;
+      default:       reactionDelay = 0.20;
     }
 
-    // Override: receiver moves toward shuttle landing spot
-    if (shuttleTargetZ !== undefined) {
-      const recvTeam = shuttleTargetZ > 0 ? 'B' : 'A';
-      const receiverIdx = this._findReceiver(shuttleTargetX, shuttleTargetZ, recvTeam);
-      const recvZ = this._zSign(recvTeam);
-      this.players[receiverIdx].setPosition(shuttleTargetX, shuttleTargetZ + recvZ * 0.3);
+    this._pendingRecvTeam = rTeam;
+    this._pendingTargetX = shuttleTargetX;
+    this._pendingTargetZ = shuttleTargetZ;
+    this._reactionTimer = reactionDelay;
+  }
+
+  _positionTeam(team, shuttleTargetX, shuttleTargetZ) {
+    const zSign = this._zSign(team);
+    const [i1, i2] = this._teamIndices(team);
+    const formation = this.teamFormation[team];
+
+    if (formation === 'attack') {
+      const frontIdx = this.teamFront[team];
+      const backIdx = this.teamBack[team];
+      const frontShiftX = shuttleTargetX * 0.3;
+      const frontZ = zSign * 2.2;
+      const backZ = zSign * 5.2;
+      const backShiftX = shuttleTargetX * 0.15;
+
+      this.players[frontIdx].setPosition(frontShiftX, frontZ);
+      this.players[backIdx].setPosition(backShiftX, backZ);
+      this.players[frontIdx].role = 'front';
+      this.players[backIdx].role = 'back';
+    } else {
+      const defZ = zSign * 4.0;
+      this.players[i1].setPosition(-1.2, defZ);
+      this.players[i2].setPosition(1.2, defZ);
+      this.players[i1].role = 'back';
+      this.players[i2].role = 'back';
     }
+  }
+
+  _applyReceiverPositions() {
+    const team = this._pendingRecvTeam;
+    if (!team) return;
+
+    // Position receiving team
+    this._positionTeam(team, this._pendingTargetX, this._pendingTargetZ);
+
+    // Receiver moves toward shuttle landing spot
+    const receiverIdx = this._findReceiver(this._pendingTargetX, this._pendingTargetZ, team);
+    const recvZ = this._zSign(team);
+    this.players[receiverIdx].setPosition(this._pendingTargetX, this._pendingTargetZ + recvZ * 0.3);
+
+    this._pendingRecvTeam = null;
   }
 
   _updateDisplay(shotType, hitter) {
@@ -1934,8 +1960,8 @@ class RallyEngine {
     // Apply rotation rules BEFORE positioning
     this._applyRotationRules(hitterIdx, shotType);
 
-    // Position all players according to formations
-    this._applyFormations(target.x, target.z);
+    // Position hitting team immediately, receiving team after reaction delay
+    this._applyFormations(target.x, target.z, hitterIdx, shotType);
 
     // Hitter swings
     hitter.startSwing(shotType);
@@ -1985,6 +2011,14 @@ class RallyEngine {
 
     if (this.state === 'rally') {
       this.shotTimer -= dt;
+
+      // Reaction delay: receiving team starts moving after delay
+      if (this._reactionTimer > 0) {
+        this._reactionTimer -= dt;
+        if (this._reactionTimer <= 0) {
+          this._applyReceiverPositions();
+        }
+      }
 
       // Pre-swing: receiver starts swing ~0.2s before shuttle arrives
       if (this.shotTimer > 0 && this.shotTimer < 0.2 && !this._preSwungReceiver) {
