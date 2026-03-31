@@ -1880,6 +1880,7 @@ class RallyEngine {
       this.players[backIdx].setPosition(backX, backZ);
       this.players[frontIdx].role = 'front';
       this.players[backIdx].role = 'back';
+      this._enforceMinDistance(frontIdx, backIdx);
     } else {
       // Defense: split court in half, each player covers their side
       // Spread wider on the 6.1m court
@@ -1892,6 +1893,25 @@ class RallyEngine {
       this.players[i2].setPosition(spreadX, defZ + zSign * (shuttleSide > 0 ? -0.3 : 0.3));
       this.players[i1].role = 'back';
       this.players[i2].role = 'back';
+      this._enforceMinDistance(i1, i2);
+    }
+  }
+
+  // Minimum distance between teammates: arm + racket ~1.7m
+  _enforceMinDistance(idx1, idx2) {
+    const MIN_DIST = 2.0; // arm + racket length for both players
+    const p1 = this.players[idx1].targetPosition;
+    const p2 = this.players[idx2].targetPosition;
+    const dx = p2.x - p1.x;
+    const dz = p2.z - p1.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < MIN_DIST && dist > 0.01) {
+      // Push them apart along their connecting line
+      const push = (MIN_DIST - dist) / 2;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      this.players[idx1].setPosition(p1.x - nx * push, p1.z - nz * push);
+      this.players[idx2].setPosition(p2.x + nx * push, p2.z + nz * push);
     }
   }
 
@@ -1901,29 +1921,30 @@ class RallyEngine {
     const targetX = this._pendingTargetX;
     const targetZ = this._pendingTargetZ;
 
-    // Find who receives
     const receiverIdx = this._findReceiver(targetX, targetZ, team);
     const [i1, i2] = this._teamIndices(team);
     const partnerIdx = i1 === receiverIdx ? i2 : i1;
-
-    // Position the team formation first
-    this._positionTeam(team, targetX, targetZ, true);
-
-    // Override receiver: move toward shuttle but stay within their court half
     const recvZ = this._zSign(team);
+    const formation = this.teamFormation[team];
+
+    // Receiver moves toward shuttle landing
     this.players[receiverIdx].setPosition(targetX, targetZ + recvZ * 0.4);
 
-    // Partner covers the opposite side of the court from the receiver
-    const partnerX = -targetX * 0.7; // opposite side
-    const formation = this.teamFormation[team];
+    // Partner covers opposite side and different depth
+    const partnerX = targetX > 0 ? -(HALF_W - 0.8) : (HALF_W - 0.8); // opposite court side
     if (formation === 'attack') {
-      // Partner goes to back, opposite side
-      this.players[partnerIdx].setPosition(partnerX, recvZ * 5.0);
+      // Partner goes deep back, opposite side
+      this.players[partnerIdx].setPosition(partnerX, recvZ * 5.5);
     } else {
-      // Partner covers their half in defense
-      const partnerSideX = targetX > 0 ? -HALF_W + 0.6 : HALF_W - 0.6;
-      this.players[partnerIdx].setPosition(partnerSideX, recvZ * 3.8);
+      // Defense: partner covers their half, slightly behind
+      this.players[partnerIdx].setPosition(partnerX, recvZ * 4.2);
     }
+
+    this.players[receiverIdx].role = formation === 'attack' ? 'front' : 'back';
+    this.players[partnerIdx].role = 'back';
+
+    // Enforce minimum distance so they never collide
+    this._enforceMinDistance(receiverIdx, partnerIdx);
 
     this._pendingRecvTeam = null;
   }
