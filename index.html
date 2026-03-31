@@ -7,13 +7,13 @@
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{overflow:hidden;background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif;color:#1a1a2e}
-  #canvas-container{width:100vw;height:100vh;position:fixed;top:0;left:0}
+  #canvas-container{width:100vw;height:100vh;position:fixed;top:0;left:0;z-index:0}
   canvas{display:block}
 
   /* Top bar */
   #top-bar{position:fixed;top:0;left:0;right:0;height:48px;background:rgba(255,255,255,0.9);
     backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 20px;z-index:10;
-    border-bottom:1px solid rgba(0,0,0,0.1)}
+    border-bottom:1px solid rgba(0,0,0,0.1);pointer-events:auto}
   #top-bar h1{font-size:15px;font-weight:600;letter-spacing:0.5px;color:#1a1a2e}
   #top-bar h1 span{color:#d97706;margin-right:6px}
   #top-bar .copyright{margin-left:auto;font-size:11px;color:#6b7280;display:flex;align-items:center;gap:8px}
@@ -23,7 +23,7 @@
   /* Formation banner */
   #formation-banner{position:fixed;top:58px;left:50%;transform:translateX(-50%);
     padding:6px 20px;border-radius:20px;font-size:13px;font-weight:600;letter-spacing:1px;
-    text-transform:uppercase;z-index:10;transition:all 0.4s ease;
+    text-transform:uppercase;z-index:10;transition:all 0.4s ease;pointer-events:none;
     border:1px solid rgba(0,0,0,0.1);backdrop-filter:blur(8px)}
   #formation-banner.attack{background:rgba(239,68,68,0.15);color:#b91c1c;border-color:rgba(239,68,68,0.3)}
   #formation-banner.defense{background:rgba(59,130,246,0.15);color:#1d4ed8;border-color:rgba(59,130,246,0.3)}
@@ -32,7 +32,7 @@
   /* Shot info */
   #shot-info{position:fixed;top:100px;left:50%;transform:translateX(-50%);
     padding:4px 14px;border-radius:12px;font-size:12px;font-weight:500;
-    background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);z-index:10;
+    background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);z-index:10;pointer-events:none;
     border:1px solid rgba(0,0,0,0.1);color:#374151;opacity:0;transition:opacity 0.3s}
   #shot-info.visible{opacity:1}
 
@@ -63,6 +63,9 @@
   .speed-control label{font-size:12px;opacity:0.6;color:#475569}
   .speed-control input[type=range]{width:140px;accent-color:#d97706}
   .speed-value{font-size:13px;font-weight:600;color:#b45309;min-width:36px;text-align:center}
+  .zoom-control{display:flex;align-items:center;gap:10px;border-left:1px solid rgba(0,0,0,0.1);padding-left:16px}
+  .zoom-control label{font-size:12px;opacity:0.6;color:#475569}
+  .zoom-control input[type=range]{width:100px;accent-color:#d97706}
   .reach-control{display:flex;align-items:center;gap:8px;border-left:1px solid rgba(0,0,0,0.1);padding-left:16px}
   .reach-control label{font-size:12px;opacity:0.6;color:#475569;white-space:nowrap}
   .reach-toggle{display:flex;align-items:center;gap:4px;font-size:12px;color:#475569;cursor:pointer}
@@ -259,13 +262,17 @@
     <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1" oninput="updateSpeed(this.value)">
     <span class="speed-value" id="speed-val">1.0x</span>
   </div>
+  <div class="zoom-control">
+    <label>Zoom</label>
+    <input type="range" id="zoom-slider" min="3" max="35" step="0.5" value="15" oninput="updateZoom(this.value)">
+  </div>
   <div class="reach-control">
     <label class="reach-toggle"><input type="checkbox" id="reach-toggle" onchange="toggleReach(this.checked)"> Reach</label>
     <input type="range" id="reach-opacity" min="0.05" max="0.5" step="0.05" value="0.15" oninput="updateReachOpacity(this.value)" disabled>
   </div>
 </div>
 
-<div id="camera-hint">Click & drag to orbit • Scroll to zoom</div>
+<div id="camera-hint">Click & drag to orbit</div>
 
 <script type="importmap">
 {
@@ -329,13 +336,16 @@ function initScene() {
   renderer.toneMappingExposure = 1.6;
   document.getElementById('canvas-container').appendChild(renderer.domElement);
 
+  // OrbitControls on canvas — standard setup
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.target.set(0, 1.5, 0);
   controls.maxPolarAngle = Math.PI * 0.48;
-  controls.minDistance = 5;
-  controls.maxDistance = 30;
+  controls.minDistance = 3;
+  controls.maxDistance = 35;
+  controls.enablePan = true;
+
 
   clock = new THREE.Clock();
 
@@ -602,12 +612,31 @@ class Shuttlecock {
     // Peak height and shape depend on shot type
     let peakH, netH;
     switch (shotType) {
-      case 'clear':  peakH = 6.5; netH = 5.0; break;
-      case 'smash':  peakH = from.y + 0.8; netH = NET_CLEAR; break;
-      case 'drop':   peakH = 3.2; netH = NET_CLEAR + 0.3; break;
-      case 'drive':  peakH = 2.3; netH = NET_CLEAR; break;
-      case 'net':    peakH = 2.0; netH = NET_CLEAR; break;
-      case 'lift':   peakH = 5.5; netH = 4.0; break;
+      case 'clear':       peakH = 6.5; netH = 5.0; break;
+      // Smash variants
+      case 'smash':       peakH = from.y + 0.8; netH = NET_CLEAR; break;
+      case 'smash_half':  peakH = from.y + 0.6; netH = NET_CLEAR; break;
+      case 'smash_stick': peakH = from.y + 0.3; netH = NET_CLEAR; break;
+      case 'smash_jump':  peakH = from.y + 1.0; netH = NET_CLEAR; break;
+      case 'smash_slice': peakH = from.y + 0.7; netH = NET_CLEAR; break;
+      // Drop variants
+      case 'drop':        peakH = 3.2; netH = NET_CLEAR + 0.3; break;
+      case 'drop_fast':   peakH = 2.8; netH = NET_CLEAR + 0.2; break;
+      case 'drop_slow':   peakH = 3.5; netH = NET_CLEAR + 0.4; break;
+      // Drive variants
+      case 'drive':
+      case 'drive_flat':      peakH = 2.3; netH = NET_CLEAR; break;
+      case 'drive_offensive': peakH = 2.0; netH = NET_CLEAR; break;
+      case 'drive_defensive': peakH = 2.6; netH = NET_CLEAR + 0.2; break;
+      // Net variants
+      case 'net':         peakH = 2.0; netH = NET_CLEAR; break;
+      case 'net_kill':    peakH = 1.8; netH = NET_CLEAR; break;
+      case 'push':        peakH = 2.1; netH = NET_CLEAR; break;
+      // Block variants
+      case 'block':       peakH = 2.0; netH = NET_CLEAR; break;
+      case 'block_cross': peakH = 2.1; netH = NET_CLEAR; break;
+      // Others
+      case 'lift':        peakH = 5.5; netH = 4.0; break;
       case 'serve':       peakH = 3.0; netH = NET_CLEAR + 0.3; break;
       case 'serve_short': peakH = 1.9; netH = NET_CLEAR; break;      // low, just clears tape
       case 'serve_flick': peakH = 5.0; netH = 3.5; break;            // deceptive snap to back
@@ -621,8 +650,8 @@ class Shuttlecock {
     const fromZ = from.z;
     const toZ = to.z;
 
-    if (shotType === 'smash') {
-      // Smash: steep downward — cp1 near hitter (high), cp2 just past net (low)
+    if (shotType.startsWith('smash')) {
+      // Smash variants: steep downward — cp1 near hitter (high), cp2 just past net (low)
       this.cp1.set(
         from.x * 0.75 + to.x * 0.25,
         peakH,
@@ -633,8 +662,8 @@ class Shuttlecock {
         netH,
         toZ * 0.35
       );
-    } else if (shotType === 'net' || shotType === 'serve_short') {
-      // Net shot / short serve: low arc, both control points close to net and just above it
+    } else if (shotType === 'net' || shotType === 'net_kill' || shotType === 'push' || shotType === 'block' || shotType === 'block_cross' || shotType === 'serve_short') {
+      // Net/block/push/short serve: low arc, control points close to net
       this.cp1.set(
         from.x * 0.6 + to.x * 0.4,
         netH + 0.15,
@@ -744,10 +773,12 @@ class RallyEngine {
     // Current rally state
     this.lastHitterIdx = -1;
     this.rallyLength = 0;
-    this.maxRallyLength = 8 + Math.floor(Math.random() * 8); // 8-15 shots per rally
+    this.maxRallyLength = 8 + Math.floor(Math.random() * 8);
     this._preSwungReceiver = false;
     this._reactionTimer = 0;
     this._pendingRecvTeam = null;
+    this.recentShots = [];     // last 5 shots for tempo variation
+    this._lastServeType = null; // track serve type for return logic
 
     this._initPositions();
   }
@@ -782,37 +813,53 @@ class RallyEngine {
     const zSign = sTeam === 'A' ? -1 : 1;
     const rightX = sTeam === 'A' ? -1 : 1;
 
-    // Server is always the male (idx 0 for A, 2 for B)
-    this._serveHitterIdx = sTeam === 'A' ? 0 : 2;
+    // Server alternates based on serving team's score (even → player[0], odd → player[1])
+    const sIndicesAll = this._teamIndices(sTeam);
+    this._serveHitterIdx = serverScore % 2 === 0 ? sIndicesAll[0] : sIndicesAll[1];
     this._serveZSign = zSign;
     this._serveSTeam = sTeam;
 
-    const serverZ = zSign * (SERVICE_LINE + 0.3);
+    // Server position: at service line, right or left box
     const serverX = this.serveFromRight ? rightX * 0.8 : -rightX * 0.8;
-    const partnerZ = zSign * 4.5;
-    const partnerX = this.serveFromRight ? -rightX * 0.8 : rightX * 0.8;
-    const receiverX = this.serveFromRight ? -rightX * 0.6 : rightX * 0.6;
-    const receiverZ = -zSign * (SERVICE_LINE + 1.5);
-    const recPartnerX = -receiverX;
-    const recPartnerZ = -zSign * 4.5;
+    const serverZ = zSign * SERVICE_LINE;
+
+    // Server's partner: ~1m behind service line, opposite side from server
+    const sPartnerX = -serverX * 0.5;
+    const sPartnerZ = zSign * (SERVICE_LINE + 1.0);
+
+    // Receiver: diagonal from server (opposite X side), at service line
+    const receiverX = -serverX * 0.7;
+    const receiverZ = -zSign * SERVICE_LINE;
+
+    // Receiver's partner: ~1m behind service line, opposite side from receiver
+    const recPartnerX = -receiverX * 0.5;
+    const recPartnerZ = -zSign * (SERVICE_LINE + 1.0);
 
     this._servePositions = {};
-    if (sTeam === 'A') {
-      this._servePositions[this._serveHitterIdx] = [serverX, serverZ];
-      this._servePositions[this._serveHitterIdx === 0 ? 1 : 0] = [partnerX, partnerZ];
-      this._servePositions[2] = [receiverX, receiverZ];
-      this._servePositions[3] = [recPartnerX, recPartnerZ];
-      // Receiver: the player in the diagonal service box (closest to receiverX/Z)
-      this._serveReceiverIdx = 2; // B's front player receives when even score, back when odd
-    } else {
-      this._servePositions[this._serveHitterIdx] = [serverX, serverZ];
-      this._servePositions[this._serveHitterIdx === 2 ? 3 : 2] = [partnerX, partnerZ];
-      this._servePositions[0] = [receiverX, receiverZ];
-      this._servePositions[1] = [recPartnerX, recPartnerZ];
-      this._serveReceiverIdx = 0; // A's front player receives
-    }
-    // Pick the actual receiver: the one placed at receiverX/Z (diagonal box)
+
+    // Server team
+    const sIndices = this._teamIndices(sTeam);
+    const sPartnerIdx = sIndices[0] === this._serveHitterIdx ? sIndices[1] : sIndices[0];
+    this._servePositions[this._serveHitterIdx] = [serverX, serverZ];
+    this._servePositions[sPartnerIdx] = [sPartnerX, sPartnerZ];
+
+    // Receiving team: alternate receiver based on receiving team's score
+    const rTeam = this._otherTeam(sTeam);
+    const rIndices = this._teamIndices(rTeam);
+    const rScore = rTeam === 'A' ? scoreA : scoreB;
+    const recvIdx = rScore % 2 === 0 ? rIndices[0] : rIndices[1];
+    const recvPartIdx = recvIdx === rIndices[0] ? rIndices[1] : rIndices[0];
+
+    this._servePositions[recvIdx] = [receiverX, receiverZ];
+    this._servePositions[recvPartIdx] = [recPartnerX, recPartnerZ];
+    this._serveReceiverIdx = recvIdx;
     this._firstReturnDone = false;
+
+    // Roles: server and receiver are front, partners are back
+    this.players[this._serveHitterIdx].role = 'front';
+    this.players[sPartnerIdx].role = 'back';
+    this.players[recvIdx].role = 'front';
+    this.players[recvPartIdx].role = 'back';
 
     for (let i = 0; i < 4; i++) {
       const pos = this._servePositions[i];
@@ -840,11 +887,13 @@ class RallyEngine {
     const zSign = this._serveZSign;
     const sTeam = this._serveSTeam;
     const rightX = sTeam === 'A' ? -1 : 1;
-    const diagX = this.serveFromRight ? -rightX * 0.5 : rightX * 0.5;
+    // Diagonal serve: target is on the OPPOSITE world-X side from the server
+    const serverX = this.serveFromRight ? rightX * 0.8 : -rightX * 0.8;
+    const diagX = -serverX * 0.6;
 
     let targetX, targetZ, shotType, duration, targetY;
     if (type === 'short') {
-      targetX = this.serveFromRight ? -rightX * 0.4 : rightX * 0.4;
+      targetX = -serverX * 0.5;
       targetZ = -zSign * (SERVICE_LINE + 0.3);
       shotType = 'serve_short'; duration = 0.7; targetY = 0.6;
     } else if (type === 'flick') {
@@ -882,6 +931,8 @@ class RallyEngine {
 
     this.lastHitterIdx = this._serveHitterIdx;
     this.rallyLength = 1;
+    this._lastServeType = shotType;
+    this.recentShots = [shotType];
     this._applyFormations(targetX, targetZ, this._serveHitterIdx, shotType);
     this._updateDisplay(shotType, hitter);
 
@@ -891,11 +942,18 @@ class RallyEngine {
   }
 
   // =============================================
-  // DYNAMIC SHOT GENERATION (rule-based)
+  // DYNAMIC SHOT GENERATION (rule-based per reference docs)
   // =============================================
   _shotDuration(type) {
-    const d = { smash:0.5, drive:0.6, drop:0.9, net:0.7, clear:1.1, lift:1.0 };
-    return d[type] || 0.8;
+    const d = {
+      smash:0.45, smash_half:0.55, smash_stick:0.4, smash_jump:0.4, smash_slice:0.5,
+      drop_fast:0.75, drop_slow:1.0, drop:0.85,
+      drive:0.55, drive_flat:0.55, drive_offensive:0.5, drive_defensive:0.6,
+      net:0.7, net_kill:0.3, push:0.5,
+      block:0.5, block_cross:0.55,
+      clear:1.1, lift:1.0
+    };
+    return d[type] || 0.7;
   }
 
   _teamOf(idx) { return idx < 2 ? 'A' : 'B'; }
@@ -916,41 +974,108 @@ class RallyEngine {
     return best;
   }
 
+  // Base shot type for rotation/formation logic (strip subtypes)
+  _baseShot(type) {
+    if (type.startsWith('smash')) return 'smash';
+    if (type.startsWith('drop')) return 'drop';
+    if (type.startsWith('drive')) return 'drive';
+    if (type.startsWith('block')) return 'block';
+    if (type === 'net_kill' || type === 'push') return 'net';
+    return type;
+  }
+
   _chooseShot(hitterIdx) {
     const team = this._teamOf(hitterIdx);
     const formation = this.teamFormation[team];
-    const zSign = this._zSign(team);
     const hitter = this.players[hitterIdx];
     const isBack = (hitterIdx === this.teamBack[team]);
     const isFront = (hitterIdx === this.teamFront[team]);
-
-    // Position on court: how deep is the hitter? (0=net, 1=back)
     const depth = Math.abs(hitter.position.z) / HALF_L;
-
-    // Shot selection based on role and formation
     const rand = Math.random();
 
-    if (formation === 'attack' && isBack && depth > 0.4) {
-      // Back player in attack: smash, drop, or clear
-      if (rand < 0.40) return 'smash';
-      if (rand < 0.75) return 'drop';
-      return 'clear'; // occasional clear to vary
+    // Track recent shots for tempo variation
+    const recent = this.recentShots || [];
+    const recentPower = recent.filter(s => s.startsWith('smash')).length;
+    const recentSoft = recent.filter(s => ['net','drop_slow','drop_fast','drop'].includes(s)).length;
+
+    // ---- SERVE RETURN (rally shot #1 after serve) ----
+    if (this.rallyLength === 1 && this._lastServeType) {
+      const st = this._lastServeType;
+      if (st === 'serve_short') {
+        // Low serve return: net kill if loose, push/net shot, lift last resort (4-SERVES golden rule)
+        if (rand < 0.15) return 'net_kill';
+        if (rand < 0.45) return 'net';
+        if (rand < 0.70) return 'push';
+        if (rand < 0.85) return 'drive';
+        return 'lift';
+      } else if (st === 'serve_flick' || st === 'serve_high') {
+        // Flick/high return: smash or drop if reached early
+        if (rand < 0.50) return this._pickSmash(recentPower);
+        if (rand < 0.80) return rand < 0.65 ? 'drop_fast' : 'drop_slow';
+        return 'clear';
+      } else if (st === 'serve_drive') {
+        // Drive serve return: block or counter-drive
+        if (rand < 0.45) return 'block';
+        if (rand < 0.80) return 'drive';
+        return 'lift';
+      }
     }
+
+    // ---- BACK PLAYER IN ATTACK (rear court) ----
+    // Priority: smash > fast drop > half-smash > slow drop > clear (rare)
+    if (formation === 'attack' && isBack && depth > 0.35) {
+      // Tempo variation: if 3+ recent smashes, increase drop/half-smash chance
+      const smashBonus = recentPower >= 3 ? -0.15 : 0;
+      if (rand < 0.55 + smashBonus) return this._pickSmash(recentPower);
+      if (rand < 0.72) return 'drop_fast';
+      if (rand < 0.82) return 'smash_half';
+      if (rand < 0.90) return 'drop_slow';
+      if (rand < 0.95) return 'clear'; // attacking clear, very rare
+      return 'drop_fast';
+    }
+
+    // ---- FRONT PLAYER IN ATTACK (forecourt) ----
+    // Priority: net kill > tight net > push > drive > lift (last resort)
     if (formation === 'attack' && isFront) {
-      // Front player: net shot to maintain pressure, or lift (last resort)
-      if (rand < 0.50) return 'net';
-      if (rand < 0.80) return 'net'; // mostly net
-      return 'lift'; // forced to lift sometimes
+      if (rand < 0.20) return 'net_kill';   // if shuttle is above net
+      if (rand < 0.55) return 'net';        // tight net shot
+      if (rand < 0.72) return 'push';       // push to gap
+      if (rand < 0.85) return 'drive';      // flat drive past
+      return 'lift';                         // absolute last resort (~15%)
     }
+
+    // ---- DEFENSE (side-by-side) ----
+    // Priority: block > drive > push to body > cross lift > high lift
     if (formation === 'defense') {
-      // Defending: lift, block to net, or drive
-      if (rand < 0.40) return 'lift';
-      if (rand < 0.65) return 'net';  // block to net
-      return 'drive';
+      if (rand < 0.30) return rand < 0.22 ? 'block' : 'block_cross';
+      if (rand < 0.55) return 'drive';
+      if (rand < 0.65) return 'push';       // push to body
+      if (rand < 0.80) return 'lift';       // cross lift
+      return 'lift';                         // high lift (safe but stays in defense)
     }
-    // Fallback / transition
-    if (depth > 0.5) return rand < 0.5 ? 'clear' : 'lift';
+
+    // ---- DIAGONAL / TRANSITION ----
+    if (formation === 'diagonal') {
+      if (rand < 0.35) return 'drive';
+      if (rand < 0.55) return 'push';
+      if (rand < 0.75) return rand < 0.65 ? 'block' : 'net';
+      return 'lift';
+    }
+
+    // Fallback
+    if (depth > 0.5) return rand < 0.4 ? 'clear' : 'lift';
     return rand < 0.5 ? 'net' : 'drive';
+  }
+
+  // Pick smash subtype with variety
+  _pickSmash(recentPowerCount) {
+    const r = Math.random();
+    if (recentPowerCount >= 3) return r < 0.5 ? 'smash_half' : 'smash_stick';
+    if (r < 0.50) return 'smash';           // full smash (default)
+    if (r < 0.70) return 'smash_half';      // 60-70% power
+    if (r < 0.85) return 'smash_jump';      // highest point, steepest
+    if (r < 0.95) return 'smash_stick';     // quick wrist tap
+    return 'smash_slice';                    // spin, deceptive
   }
 
   _computeTarget(hitterIdx, shotType) {
@@ -960,99 +1085,156 @@ class RallyEngine {
     const hitter = this.players[hitterIdx];
     const hx = hitter.position.x;
 
-    // Determine which side the hitter is on (left/right/center)
+    // Direction: straight (same side, safer), cross (opposite, riskier), middle (gap), body
     const hSide = hx > 0.5 ? 1 : (hx < -0.5 ? -1 : 0);
-    const courtSideRange = HALF_W - 0.4; // usable X range (~2.65m)
-
-    // Cross-court vs straight vs middle: 35% cross, 35% straight, 30% middle
+    const csr = HALF_W - 0.4;
     const r = Math.random();
+
+    // Get opponent positions for targeting gaps/body
+    const oppIndices = this._teamIndices(oppTeam);
+    const opp1 = this.players[oppIndices[0]].position;
+    const opp2 = this.players[oppIndices[1]].position;
+    const gapX = (opp1.x + opp2.x) / 2; // middle between opponents
+    const gapZ = (opp1.z + opp2.z) / 2;
+
     let targetX;
-    if (r < 0.35) {
-      // Cross-court: aim at opposite side of the court
-      const oppSide = hSide !== 0 ? -hSide : (Math.random() > 0.5 ? 1 : -1);
-      targetX = oppSide * (1.0 + Math.random() * (courtSideRange - 1.0));
-    } else if (r < 0.70) {
-      // Straight: aim at same side of the court
-      const sameSide = hSide !== 0 ? hSide : (Math.random() > 0.5 ? 1 : -1);
-      targetX = sameSide * (0.8 + Math.random() * (courtSideRange - 0.8));
-    } else {
-      // Middle: within center strip
-      targetX = (Math.random() - 0.5) * 1.5;
+    // Smash targeting: straight (default, 45%), body (20%), middle/gap (20%), cross (15%)
+    if (shotType.startsWith('smash')) {
+      if (r < 0.45) {
+        const side = hSide !== 0 ? hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = side * (0.8 + Math.random() * (csr - 0.8));
+      } else if (r < 0.65) {
+        // Body: aim at closer opponent
+        const closer = Math.abs(opp1.z) < Math.abs(opp2.z) ? opp1 : opp2;
+        targetX = closer.x + (Math.random() - 0.5) * 0.3;
+      } else if (r < 0.85) {
+        targetX = gapX + (Math.random() - 0.5) * 0.5;
+      } else {
+        const oppSide = hSide !== 0 ? -hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = oppSide * (1.0 + Math.random() * (csr - 1.0));
+      }
     }
-    // Clamp within court
+    // Net/push: cross-net common (40% cross, 35% straight, 25% tight center)
+    else if (shotType === 'net' || shotType === 'push' || shotType === 'net_kill') {
+      if (r < 0.40) {
+        const oppSide = hSide !== 0 ? -hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = oppSide * (0.8 + Math.random() * (csr - 0.8));
+      } else if (r < 0.75) {
+        const side = hSide !== 0 ? hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = side * (0.5 + Math.random() * (csr - 0.5));
+      } else {
+        targetX = (Math.random() - 0.5) * 1.0;
+      }
+    }
+    // Default targeting for other shots
+    else {
+      if (r < 0.35) {
+        const oppSide = hSide !== 0 ? -hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = oppSide * (1.0 + Math.random() * (csr - 1.0));
+      } else if (r < 0.70) {
+        const side = hSide !== 0 ? hSide : (Math.random() > 0.5 ? 1 : -1);
+        targetX = side * (0.8 + Math.random() * (csr - 0.8));
+      } else {
+        targetX = (Math.random() - 0.5) * 1.5;
+      }
+    }
     targetX = Math.max(-HALF_W + 0.3, Math.min(HALF_W - 0.3, targetX));
 
+    // Shot-specific landing zones and heights
     switch (shotType) {
-      case 'smash':
-        return { x: targetX, z: oppZ * (2.5 + Math.random() * 1.5), y: 0.4, hitY: 2.5 };
-      case 'drop':
-        return { x: targetX, z: oppZ * (1.5 + Math.random() * 1.0), y: 0.3, hitY: 2.2 };
-      case 'clear':
-        // Clears often go cross-court to open space
-        return { x: targetX, z: oppZ * (HALF_L - 1.0 + Math.random() * 0.5), y: 0.3, hitY: 2.5 };
-      case 'lift':
-        return { x: targetX, z: oppZ * (HALF_L - 1.5 + Math.random() * 1.0), y: 0.3, hitY: 1.3 };
-      case 'net':
-        // Net shots: cross-net (side to side) or straight, tighter X range near net
-        return { x: targetX * 0.8, z: oppZ * (0.6 + Math.random() * 0.8), y: 0.5, hitY: 1.4 };
+      // Smash variants
+      case 'smash':       return { x:targetX, z:oppZ*(2.5+Math.random()*1.5), y:0.3, hitY:2.5 };
+      case 'smash_half':  return { x:targetX, z:oppZ*(2.8+Math.random()*1.5), y:0.4, hitY:2.3 };
+      case 'smash_stick': return { x:targetX, z:oppZ*(2.0+Math.random()*1.5), y:0.4, hitY:2.0 };
+      case 'smash_jump':  return { x:targetX, z:oppZ*(2.2+Math.random()*1.2), y:0.25, hitY:2.8 };
+      case 'smash_slice': return { x:targetX, z:oppZ*(2.5+Math.random()*1.5), y:0.35, hitY:2.4 };
+      // Drop variants
+      case 'drop_fast':   return { x:targetX, z:oppZ*(1.5+Math.random()*1.0), y:0.3, hitY:2.2 };
+      case 'drop_slow':   return { x:targetX, z:oppZ*(0.8+Math.random()*0.6), y:0.4, hitY:2.0 };
+      case 'drop':        return { x:targetX, z:oppZ*(1.2+Math.random()*0.8), y:0.3, hitY:2.1 };
+      // Drive variants
       case 'drive':
-        return { x: targetX, z: oppZ * (2.0 + Math.random() * 2.0), y: 0.7, hitY: 1.6 };
-      default:
-        return { x: targetX, z: oppZ * 3.0, y: 0.3, hitY: 1.5 };
+      case 'drive_flat':      return { x:targetX, z:oppZ*(2.0+Math.random()*2.0), y:0.7, hitY:1.6 };
+      case 'drive_offensive': return { x:targetX, z:oppZ*(2.0+Math.random()*1.5), y:0.5, hitY:1.7 };
+      case 'drive_defensive': return { x:targetX, z:oppZ*(2.5+Math.random()*2.0), y:0.9, hitY:1.5 };
+      // Net variants
+      case 'net':         return { x:targetX*0.8, z:oppZ*(0.5+Math.random()*0.7), y:0.5, hitY:1.4 };
+      case 'net_kill':    return { x:targetX*0.7, z:oppZ*(0.8+Math.random()*0.8), y:0.2, hitY:1.7 };
+      case 'push':        return { x:targetX, z:oppZ*(1.5+Math.random()*1.5), y:0.6, hitY:1.5 };
+      // Block variants
+      case 'block':       return { x:targetX*0.7, z:oppZ*(0.5+Math.random()*0.6), y:0.5, hitY:1.2 };
+      case 'block_cross': return { x:-hx*0.8+(Math.random()-0.5)*0.5, z:oppZ*(0.6+Math.random()*0.7), y:0.5, hitY:1.2 };
+      // Clear/lift
+      case 'clear':       return { x:targetX, z:oppZ*(HALF_L-1.0+Math.random()*0.5), y:0.3, hitY:2.5 };
+      case 'lift':        return { x:targetX, z:oppZ*(HALF_L-1.5+Math.random()*1.0), y:0.3, hitY:1.3 };
+      default:            return { x:targetX, z:oppZ*3.0, y:0.3, hitY:1.5 };
     }
   }
 
   // =============================================
-  // FORMATION & ROTATION LOGIC
+  // FORMATION & ROTATION LOGIC (per 2-FORMATIONS)
   // =============================================
   _applyRotationRules(hitterIdx, shotType) {
     const hTeam = this._teamOf(hitterIdx);
     const rTeam = this._otherTeam(hTeam);
     const hIndices = this._teamIndices(hTeam);
     const partnerIdx = hIndices[0] === hitterIdx ? hIndices[1] : hIndices[0];
+    const base = this._baseShot(shotType);
 
     // ---- HITTING TEAM RULES ----
-    if (shotType === 'smash') {
-      // Smash from back: stay in attack, hitter stays back
+    if (base === 'smash') {
+      // Smash: stay in attack, hitter stays back (consecutive smashes are fine)
       this.teamFormation[hTeam] = 'attack';
       this.teamBack[hTeam] = hitterIdx;
       this.teamFront[hTeam] = partnerIdx;
     }
-    else if (shotType === 'drop') {
-      // Drop from back: FOLLOW THE SHUTTLE forward → hitter becomes front
-      // This is the key rotation: back player drops and follows to net
-      this.teamFormation[hTeam] = 'attack';
-      this.teamFront[hTeam] = hitterIdx;  // dropper moves to front
-      this.teamBack[hTeam] = partnerIdx;   // partner rotates to back
-    }
-    else if (shotType === 'net') {
-      // Net shot: maintain attack, front stays front
+    else if (base === 'drop') {
+      // Drop: FOLLOW THE SHUTTLE → hitter moves to front, partner rotates back
       this.teamFormation[hTeam] = 'attack';
       this.teamFront[hTeam] = hitterIdx;
       this.teamBack[hTeam] = partnerIdx;
     }
-    else if (shotType === 'lift' || shotType === 'clear') {
-      // Lift/clear: CONCEDE ATTACK → immediate defense (side by side)
+    else if (base === 'block') {
+      // Block from defense: blocker moves FORWARD to front → defense-to-attack transition!
+      // "The player who makes the net shot always moves forward" (2-FORMATIONS)
+      this.teamFormation[hTeam] = 'attack';
+      this.teamFront[hTeam] = hitterIdx;
+      this.teamBack[hTeam] = partnerIdx;
+    }
+    else if (base === 'net' || shotType === 'push' || shotType === 'net_kill') {
+      // Net/push/kill: maintain attack, hitter stays front
+      this.teamFormation[hTeam] = 'attack';
+      this.teamFront[hTeam] = hitterIdx;
+      this.teamBack[hTeam] = partnerIdx;
+    }
+    else if (base === 'lift' || shotType === 'clear') {
+      // Lift/clear: CONCEDE ATTACK → immediate side-by-side defense
       this.teamFormation[hTeam] = 'defense';
     }
-    else if (shotType === 'drive') {
-      // Drive: neutral/transition, keep current formation
-      // slight tendency toward defense
+    else if (base === 'drive') {
+      // Drive: transitional diagonal formation
+      this.teamFormation[hTeam] = 'diagonal';
     }
 
     // ---- RECEIVING TEAM RULES ----
-    if (shotType === 'smash' || shotType === 'drop' || shotType === 'drive') {
-      // Opponent attacking us → we defend
+    if (base === 'smash' || base === 'drop') {
       this.teamFormation[rTeam] = 'defense';
     }
-    else if (shotType === 'lift' || shotType === 'clear') {
-      // Opponent lifted → we attack!
+    else if (base === 'lift' || shotType === 'clear') {
       this.teamFormation[rTeam] = 'attack';
     }
-    else if (shotType === 'net') {
-      // Net shot → receiving team may need to lift (defense) or can play net (attack)
-      // Depends on quality — simplified: they're under some pressure
-      this.teamFormation[rTeam] = this.teamFormation[rTeam]; // keep current
+    else if (base === 'block' || base === 'net' || shotType === 'push') {
+      // Opponent played net/block → we're under pressure, may need to lift
+      // Keep current or lean toward attack if we can intercept
+      if (this.teamFormation[rTeam] !== 'attack') {
+        this.teamFormation[rTeam] = 'defense';
+      }
+    }
+    else if (base === 'drive') {
+      this.teamFormation[rTeam] = 'diagonal';
+    }
+    else if (shotType === 'net_kill') {
+      this.teamFormation[rTeam] = 'defense'; // scramble
     }
   }
 
@@ -1060,79 +1242,79 @@ class RallyEngine {
     const hTeam = this._teamOf(hitterIdx);
     const rTeam = this._otherTeam(hTeam);
 
-    // Hitting team moves immediately (they know where they're hitting)
+    // Hitting team moves immediately
     this._positionTeam(hTeam, shuttleTargetX, shuttleTargetZ);
 
-    // Receiving team reacts with delay — store pending positions
-    // Reaction time varies by shot speed
-    let reactionDelay;
-    switch (shotType) {
-      case 'smash':  reactionDelay = 0.12; break; // very fast, little time
-      case 'drive':  reactionDelay = 0.15; break;
-      case 'drop':   reactionDelay = 0.20; break;
-      case 'net':    reactionDelay = 0.18; break;
-      case 'clear':  reactionDelay = 0.30; break; // slow, plenty of time
-      case 'lift':   reactionDelay = 0.28; break;
-      default:       reactionDelay = 0.20;
-    }
-
+    // Receiving team reacts with delay
+    const base = this._baseShot(shotType);
+    const delays = {
+      smash:0.12, drop:0.18, drive:0.15, net:0.18, block:0.15,
+      clear:0.30, lift:0.28
+    };
     this._pendingRecvTeam = rTeam;
     this._pendingTargetX = shuttleTargetX;
     this._pendingTargetZ = shuttleTargetZ;
-    this._reactionTimer = reactionDelay;
+    this._reactionTimer = delays[base] || 0.20;
   }
 
-  _positionTeam(team, shuttleTargetX, shuttleTargetZ, isReceiving) {
+  _positionTeam(team, shuttleTargetX, shuttleTargetZ) {
     const zSign = this._zSign(team);
     const [i1, i2] = this._teamIndices(team);
     const formation = this.teamFormation[team];
-
-    // Racket reach ~1m — players should stay at least this far apart
-    const MIN_SPREAD = 1.5;
 
     if (formation === 'attack') {
       const frontIdx = this.teamFront[team];
       const backIdx = this.teamBack[team];
 
-      // Front player: shifted toward shuttle side but not beyond center line
-      const frontX = Math.max(-HALF_W + 0.5, Math.min(HALF_W - 0.5, shuttleTargetX * 0.4));
-      const frontZ = zSign * 2.0;
+      // Front: just behind service line, shifted to SAME side as attack (covers straight returns)
+      const frontX = Math.max(-HALF_W + 0.5, Math.min(HALF_W - 0.5, shuttleTargetX * 0.6));
+      const frontZ = zSign * SERVICE_LINE; // just behind service line (~1.98m)
 
-      // Back player: covers the OPPOSITE side from front to maximize coverage
-      const backX = -frontX * 0.6; // opposite side for court balance
-      const backZ = zSign * 5.5;
+      // Back: rear court, slightly biased toward attack side (covers both straight + cross)
+      const backX = Math.max(-HALF_W + 0.5, Math.min(HALF_W - 0.5, shuttleTargetX * 0.3));
+      const backZ = zSign * (HALF_L - 1.5); // ~5.2m from net
 
       this.players[frontIdx].setPosition(frontX, frontZ);
       this.players[backIdx].setPosition(backX, backZ);
       this.players[frontIdx].role = 'front';
       this.players[backIdx].role = 'back';
       this._enforceMinDistance(frontIdx, backIdx);
-    } else {
-      // Defense: split court in half, each player covers their side
-      // Spread wider on the 6.1m court
-      const defZ = zSign * 3.8;
-      const spreadX = HALF_W - 0.6; // ~2.45m from center = good court coverage
 
-      // Position based on shuttle side — player on shuttle side is slightly forward
+    } else if (formation === 'diagonal') {
+      // Drive exchange: diagonal formation — one slightly forward, one slightly behind, opposite sides
+      const [a, b] = [this.teamFront[team] ?? i1, this.teamBack[team] ?? i2];
+      const shiftX = shuttleTargetX > 0 ? 1 : -1;
+      this.players[a].setPosition(shiftX * (HALF_W - 1.0), zSign * 2.8);
+      this.players[b].setPosition(-shiftX * (HALF_W - 1.0), zSign * 4.2);
+      this.players[a].role = 'front';
+      this.players[b].role = 'back';
+      this._enforceMinDistance(a, b);
+
+    } else {
+      // Defense: side-by-side, one step behind mid-court (~3.5m)
+      // Both shift laterally toward the attacking side
+      const defZ = zSign * 3.5;
+      const spreadX = 1.5; // ~1.5m from center, each covers half court
+      const lateralShift = shuttleTargetX * 0.2; // both shift toward attack side
+
+      // Player on shuttle side is slightly more forward
       const shuttleSide = shuttleTargetX > 0 ? 1 : -1;
-      this.players[i1].setPosition(-spreadX, defZ + zSign * (shuttleSide < 0 ? -0.3 : 0.3));
-      this.players[i2].setPosition(spreadX, defZ + zSign * (shuttleSide > 0 ? -0.3 : 0.3));
+      this.players[i1].setPosition(-spreadX + lateralShift, defZ - zSign * (shuttleSide < 0 ? 0.4 : 0));
+      this.players[i2].setPosition(spreadX + lateralShift, defZ - zSign * (shuttleSide > 0 ? 0.4 : 0));
       this.players[i1].role = 'back';
       this.players[i2].role = 'back';
       this._enforceMinDistance(i1, i2);
     }
   }
 
-  // Minimum distance between teammates: arm + racket ~1.7m
   _enforceMinDistance(idx1, idx2) {
-    const MIN_DIST = 2.0; // arm + racket length for both players
+    const MIN_DIST = 1.3; // real doubles: partners ~1-1.5m apart
     const p1 = this.players[idx1].targetPosition;
     const p2 = this.players[idx2].targetPosition;
     const dx = p2.x - p1.x;
     const dz = p2.z - p1.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < MIN_DIST && dist > 0.01) {
-      // Push them apart along their connecting line
       const push = (MIN_DIST - dist) / 2;
       const nx = dx / dist;
       const nz = dz / dist;
@@ -1147,31 +1329,32 @@ class RallyEngine {
     const targetX = this._pendingTargetX;
     const targetZ = this._pendingTargetZ;
 
-    const receiverIdx = this._findReceiver(targetX, targetZ, team);
+    const receiverIdx = !this._firstReturnDone ? this._serveReceiverIdx :
+      this._findReceiver(targetX, targetZ, team);
     const [i1, i2] = this._teamIndices(team);
     const partnerIdx = i1 === receiverIdx ? i2 : i1;
     const recvZ = this._zSign(team);
     const formation = this.teamFormation[team];
 
+    // Position team first
+    this._positionTeam(team, targetX, targetZ);
+
     // Receiver moves toward shuttle landing
     this.players[receiverIdx].setPosition(targetX, targetZ + recvZ * 0.4);
 
-    // Partner covers opposite side and different depth
-    const partnerX = targetX > 0 ? -(HALF_W - 0.8) : (HALF_W - 0.8); // opposite court side
+    // Partner covers opposite side (~1.5m from center, not at sideline)
+    const partnerX = targetX > 0 ? -1.5 : 1.5;
     if (formation === 'attack') {
-      // Partner goes deep back, opposite side
-      this.players[partnerIdx].setPosition(partnerX, recvZ * 5.5);
+      this.players[partnerIdx].setPosition(partnerX, recvZ * (HALF_L - 1.5));
+    } else if (formation === 'diagonal') {
+      this.players[partnerIdx].setPosition(partnerX, recvZ * 3.5);
     } else {
-      // Defense: partner covers their half, slightly behind
-      this.players[partnerIdx].setPosition(partnerX, recvZ * 4.2);
+      this.players[partnerIdx].setPosition(partnerX, recvZ * 3.5);
     }
 
     this.players[receiverIdx].role = formation === 'attack' ? 'front' : 'back';
     this.players[partnerIdx].role = 'back';
-
-    // Enforce minimum distance so they never collide
     this._enforceMinDistance(receiverIdx, partnerIdx);
-
     this._pendingRecvTeam = null;
   }
 
@@ -1196,8 +1379,14 @@ class RallyEngine {
     const shotNames = {
       serve:'Serve', serve_short:'👇 Short Serve', serve_flick:'👆 Flick Serve',
       serve_high:'☝️ High Serve', serve_drive:'👉 Drive Serve',
-      clear:'Clear ↑', smash:'Smash ⚡', drop:'Drop ↓',
-      drive:'Drive →', net:'Net Shot', lift:'Lift ↑'
+      smash:'Smash ⚡', smash_half:'Half-Smash', smash_stick:'Stick Smash',
+      smash_jump:'Jump Smash ⚡', smash_slice:'Slice Smash',
+      drop:'Drop ↓', drop_fast:'Fast Drop', drop_slow:'Slow Drop',
+      drive:'Drive →', drive_flat:'Flat Drive', drive_offensive:'Offensive Drive',
+      drive_defensive:'Defensive Drive',
+      net:'Net Shot', net_kill:'Net Kill ⚡', push:'Push →',
+      block:'Block', block_cross:'Cross Block',
+      clear:'Clear ↑', lift:'Lift ↑'
     };
     const tLabel = hTeam === 'A' ? 'Team A' : 'Team B';
     shotInfo.textContent = `${hitter.name} — ${shotNames[shotType] || shotType} (${tLabel})`;
@@ -1245,6 +1434,8 @@ class RallyEngine {
     this.shuttle.setTrajectory(fromPos, toPos, shotType, duration);
 
     this.lastHitterIdx = hitterIdx;
+    this.recentShots.push(shotType);
+    if (this.recentShots.length > 5) this.recentShots.shift();
     this._updateDisplay(shotType, hitter);
     this.shotTimer = duration;
     return true;
@@ -1296,7 +1487,8 @@ class RallyEngine {
       if (this.shotTimer > 0 && this.shotTimer < 0.2 && !this._preSwungReceiver) {
         const lastTarget = this.shuttle.endPos;
         const recvTeam = lastTarget.z > 0 ? 'B' : 'A';
-        const receiverIdx = this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
+        const receiverIdx = !this._firstReturnDone ? this._serveReceiverIdx :
+          this._findReceiver(lastTarget.x, lastTarget.z, recvTeam);
         // Determine what shot the receiver will play (peek ahead)
         const nextShot = this._chooseShot(receiverIdx);
         this.players[receiverIdx].startSwing(nextShot, this.shuttle.endPos);
@@ -1445,6 +1637,11 @@ function animate() {
   }
 
   controls.update();
+
+  // Sync zoom slider with actual camera distance
+  const camDist = camera.position.distanceTo(controls.target);
+  document.getElementById('zoom-slider').value = camDist;
+
   renderer.render(scene, camera);
 }
 
@@ -1461,6 +1658,13 @@ window.togglePlay = function() {
 window.updateSpeed = function(val) {
   playbackSpeed = parseFloat(val);
   document.getElementById('speed-val').textContent = playbackSpeed.toFixed(1) + 'x';
+};
+
+window.updateZoom = function(val) {
+  const dist = parseFloat(val);
+  const offset = camera.position.clone().sub(controls.target);
+  offset.normalize().multiplyScalar(dist);
+  camera.position.copy(controls.target).add(offset);
 };
 
 window.toggleReach = function(on) {
