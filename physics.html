@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Player Animation Debug — Badminton Rotation</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{overflow:hidden;background:#f0f2f5;font-family:'Segoe UI',system-ui,sans-serif;color:#1a1a2e}
+  #canvas-container{width:100vw;height:100vh;position:fixed;top:0;left:0}
+  canvas{display:block}
+
+  /* Top bar */
+  #top-bar{position:fixed;top:0;left:0;right:0;height:48px;background:rgba(255,255,255,0.9);
+    backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 20px;z-index:10;
+    border-bottom:1px solid rgba(0,0,0,0.1)}
+  #top-bar h1{font-size:15px;font-weight:600;letter-spacing:0.5px;color:#1a1a2e}
+  #top-bar h1 span{color:#d97706;margin-right:6px}
+
+  /* Side panel */
+  #panel{position:fixed;top:58px;left:16px;z-index:10;width:260px;
+    background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-radius:12px;
+    padding:14px 16px;border:1px solid rgba(0,0,0,0.08);
+    max-height:calc(100vh - 74px);overflow-y:auto;font-size:12px}
+  #panel::-webkit-scrollbar{width:4px}
+  #panel::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:2px}
+
+  #panel h3{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;opacity:0.5;
+    margin:10px 0 6px;color:#475569}
+  #panel h3:first-child{margin-top:0}
+
+  .anim-btn{display:block;width:100%;text-align:left;padding:6px 10px;margin:3px 0;
+    border-radius:6px;border:1px solid rgba(0,0,0,0.1);background:rgba(0,0,0,0.03);
+    cursor:pointer;font-size:12px;font-weight:500;color:#1e293b;transition:all 0.15s}
+  .anim-btn:hover{background:rgba(217,119,6,0.1);border-color:rgba(217,119,6,0.4)}
+  .anim-btn.active{background:rgba(217,119,6,0.18);border-color:rgba(217,119,6,0.5);color:#92400e;font-weight:600}
+
+  .slider-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .slider-row label{font-size:11px;color:#475569;min-width:80px}
+  .slider-row input[type=range]{flex:1;accent-color:#d97706}
+  .slider-row .val{font-size:11px;font-weight:600;color:#b45309;min-width:36px;text-align:right}
+
+  .check-row{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px;color:#475569;cursor:pointer}
+  .check-row input{accent-color:#d97706;width:14px;height:14px;cursor:pointer}
+
+  .select-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  .select-row label{font-size:11px;color:#475569;min-width:80px}
+  .select-row select{flex:1;font-size:12px;padding:4px 6px;border-radius:6px;
+    border:1px solid rgba(0,0,0,0.12);background:#fafafa;color:#1e293b}
+
+  /* State overlay */
+  #state-overlay{position:fixed;top:58px;right:16px;z-index:10;width:280px;
+    background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);border-radius:12px;
+    padding:14px 16px;font-family:'SF Mono','Fira Code',monospace;font-size:11px;
+    color:#a5f3a0;line-height:1.6;white-space:pre;
+    max-height:calc(100vh - 74px);overflow-y:auto}
+  #state-overlay::-webkit-scrollbar{width:4px}
+  #state-overlay::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:2px}
+
+  /* Camera hint */
+  #camera-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+    font-size:11px;opacity:0.35;z-index:10;pointer-events:none;color:#475569}
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="top-bar">
+  <h1><span>&#127992;</span> Player Animation Debug / Tuning</h1>
+</div>
+
+<div id="panel">
+  <h3>Player Config</h3>
+  <div class="select-row">
+    <label>Gender</label>
+    <select id="gender-select" onchange="rebuildPlayer()">
+      <option value="male">Male</option>
+      <option value="female">Female</option>
+    </select>
+  </div>
+  <div class="select-row">
+    <label>Hand</label>
+    <select id="hand-select" onchange="rebuildPlayer()">
+      <option value="right">Right-handed</option>
+      <option value="left">Left-handed</option>
+    </select>
+  </div>
+  <div class="select-row">
+    <label>Role</label>
+    <select id="role-select" onchange="updateRole()">
+      <option value="front">Front</option>
+      <option value="back" selected>Back</option>
+    </select>
+  </div>
+
+  <h3>Swing Animations</h3>
+  <button class="anim-btn" onclick="triggerAnim('smash')">Smash (overhead + jump)</button>
+  <button class="anim-btn" onclick="triggerAnim('clear')">Clear (overhead + jump)</button>
+  <button class="anim-btn" onclick="triggerAnim('drop')">Drop Shot (gentle push)</button>
+  <button class="anim-btn" onclick="triggerAnim('net')">Net Shot (push + hop if front)</button>
+  <button class="anim-btn" onclick="triggerAnim('lift')">Lift (underhand scoop)</button>
+  <button class="anim-btn" onclick="triggerAnim('drive')">Drive (side swing)</button>
+  <button class="anim-btn" onclick="triggerAnim('serve_short')">Short Serve (gentle push)</button>
+  <button class="anim-btn" onclick="triggerAnim('serve_flick')">Flick Serve (overhead + jump)</button>
+
+  <h3>Movement</h3>
+  <button class="anim-btn" onclick="triggerWalk()">Walk Cycle</button>
+  <button class="anim-btn" onclick="triggerIdle()">Idle Stance</button>
+
+  <h3>Parameters</h3>
+  <div class="slider-row">
+    <label>Anim Speed</label>
+    <input type="range" id="anim-speed" min="0.1" max="3" step="0.05" value="1" oninput="updateAnimSpeed(this.value)">
+    <span class="val" id="anim-speed-val">1.0x</span>
+  </div>
+  <div class="slider-row">
+    <label>Jump Height</label>
+    <input type="range" id="jump-height" min="0" max="0.8" step="0.02" value="0.35" oninput="updateJumpHeight(this.value)">
+    <span class="val" id="jump-height-val">0.35</span>
+  </div>
+  <div class="slider-row">
+    <label>Swing Speed</label>
+    <input type="range" id="swing-speed" min="1" max="12" step="0.5" value="5" oninput="updateSwingSpeed(this.value)">
+    <span class="val" id="swing-speed-val">5.0</span>
+  </div>
+  <label class="check-row"><input type="checkbox" id="loop-check" onchange="updateLoop(this.checked)"> Loop current animation</label>
+</div>
+
+<div id="state-overlay"></div>
+
+<div id="camera-hint">Click & drag to orbit | Scroll to zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ============================================================
+// CONSTANTS (same as index.html)
+// ============================================================
+const PLAYER_H = 1.75;
+const RACKET_LEN = 0.67;
+
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let scene, camera, renderer, controls, clock;
+let animSpeed = 1.0;
+let swingSpeedMultiplier = 5; // dt * this = swingPhase increment
+let jumpHeightOverride = 0.35;
+let loopEnabled = false;
+let currentAnim = 'idle'; // track which animation is active
+let player = null;
+let walkTarget = null; // for walk cycle demo
+let walkState = 'idle'; // 'idle' | 'walking' | 'swing'
+
+// ============================================================
+// SCENE SETUP
+// ============================================================
+function initScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xe8ecf1);
+  scene.fog = new THREE.Fog(0xe8ecf1, 25, 45);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(-3, 2.5, 3);
+  camera.lookAt(0, 0.9, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.6;
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0.9, 0);
+  controls.minDistance = 1.5;
+  controls.maxDistance = 15;
+
+  clock = new THREE.Clock();
+
+  // Lighting (same as index.html)
+  const ambient = new THREE.AmbientLight(0x90a0b8, 0.8);
+  scene.add(ambient);
+
+  const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+  dirLight.position.set(8, 16, 4);
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  dirLight.shadow.camera.left = -6;
+  dirLight.shadow.camera.right = 6;
+  dirLight.shadow.camera.top = 6;
+  dirLight.shadow.camera.bottom = -6;
+  dirLight.shadow.camera.near = 1;
+  dirLight.shadow.camera.far = 30;
+  dirLight.shadow.bias = -0.001;
+  scene.add(dirLight);
+
+  const fillLight = new THREE.DirectionalLight(0xb0c4de, 0.5);
+  fillLight.position.set(-6, 8, -6);
+  scene.add(fillLight);
+
+  for (let sx of [-1, 1]) {
+    for (let sz of [-1, 1]) {
+      const spot = new THREE.PointLight(0xfff8e0, 0.5, 20);
+      spot.position.set(sx * 2, 6, sz * 2);
+      scene.add(spot);
+    }
+  }
+}
+
+// ============================================================
+// FLOOR
+// ============================================================
+function createFloor() {
+  // Gray floor
+  const floorGeo = new THREE.PlaneGeometry(8, 8);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x999999, roughness: 0.7, metalness: 0.05
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -0.01;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Grid lines for reference
+  const gridHelper = new THREE.GridHelper(8, 16, 0x777777, 0xaaaaaa);
+  gridHelper.position.y = 0.005;
+  gridHelper.material.opacity = 0.3;
+  gridHelper.material.transparent = true;
+  scene.add(gridHelper);
+
+  // Origin marker
+  const markerGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.01, 16);
+  const markerMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const marker = new THREE.Mesh(markerGeo, markerMat);
+  marker.position.y = 0.01;
+  scene.add(marker);
+}
+
+// ============================================================
+// PLAYER MODEL (exact copy from index.html)
+// ============================================================
+class Player {
+  constructor(name, gender, team, handedness) {
+    this.name = name;
+    this.gender = gender;
+    this.team = team;
+    this.handedness = handedness;
+    this.role = 'back';
+
+    this.position = new THREE.Vector3(0, 0, 0);
+    this.targetPosition = new THREE.Vector3(0, 0, 0);
+    this.velocity = new THREE.Vector3(0, 0, 0);
+
+    this.swingPhase = -1;
+    this.swingType = 'clear';
+    this.jumpPhase = -1;
+    this.jumpHeight = 0;
+    this.jumpDuration = 0.5;
+    this.facingAngle = 0;
+    this.targetFacingAngle = 0;
+    this.walkCycle = 0;
+    this.isMoving = false;
+
+    this.group = new THREE.Group();
+    this.bodyParts = {};
+    this._buildModel();
+    scene.add(this.group);
+  }
+
+  _color() {
+    if (this.team === 'A') {
+      return this.gender === 'male' ? 0x2563eb : 0x60a5fa;
+    }
+    return this.gender === 'male' ? 0xdc2626 : 0xf87171;
+  }
+
+  _buildModel() {
+    const col = this._color();
+    const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf0c8a0, roughness: 0.6 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4 });
+    const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+    const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.2 });
+    const mouthMat = new THREE.MeshStandardMaterial({ color: 0xc4756e, roughness: 0.5 });
+    const hairColor = this.gender === 'male' ? 0x1a1a1a : 0x3d1c02;
+    const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.5 });
+
+    const s = this.gender === 'male' ? 1.0 : 0.88;
+    this.bodyScale = s;
+
+    const headY = PLAYER_H * s;
+    const neckY = headY - 0.2;
+    const shoulderY = neckY - 0.05;
+    const hipY = shoulderY - 0.4;
+    const kneeY = hipY - 0.38;
+    const ankleY = kneeY - 0.35;
+    const footY = ankleY - 0.04;
+
+    this.groundOffset = -footY;
+
+    // ---- HEAD ----
+    const headGroup = new THREE.Group();
+    headGroup.position.y = headY;
+
+    const skull = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13 * s, 16, 16), skinMat
+    );
+    skull.scale.set(1, 1.1, 0.95);
+    skull.castShadow = true;
+    headGroup.add(skull);
+
+    for (let ex of [-1, 1]) {
+      const eyeWhite = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028 * s, 8, 8), eyeWhiteMat
+      );
+      eyeWhite.position.set(ex * 0.045 * s, 0.015 * s, 0.11 * s);
+      eyeWhite.scale.set(1, 0.7, 0.5);
+      headGroup.add(eyeWhite);
+
+      const pupil = new THREE.Mesh(
+        new THREE.SphereGeometry(0.016 * s, 6, 6), eyeMat
+      );
+      pupil.position.set(ex * 0.045 * s, 0.015 * s, 0.125 * s);
+      pupil.scale.set(1, 0.8, 0.5);
+      headGroup.add(pupil);
+    }
+
+    const nose = new THREE.Mesh(
+      new THREE.SphereGeometry(0.018 * s, 6, 6), skinMat
+    );
+    nose.position.set(0, -0.01 * s, 0.125 * s);
+    nose.scale.set(0.7, 0.6, 0.8);
+    headGroup.add(nose);
+
+    const mouth = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04 * s, 0.008 * s, 0.01 * s), mouthMat
+    );
+    mouth.position.set(0, -0.04 * s, 0.12 * s);
+    headGroup.add(mouth);
+
+    for (let ex of [-1, 1]) {
+      const ear = new THREE.Mesh(
+        new THREE.SphereGeometry(0.025 * s, 6, 6), skinMat
+      );
+      ear.position.set(ex * 0.12 * s, -0.01 * s, 0);
+      ear.scale.set(0.4, 0.7, 0.6);
+      headGroup.add(ear);
+    }
+
+    if (this.gender === 'male') {
+      const hairTop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.135 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat
+      );
+      hairTop.scale.set(1.02, 1.0, 0.97);
+      hairTop.position.y = 0.02 * s;
+      headGroup.add(hairTop);
+    } else {
+      const hairTop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14 * s, 12, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat
+      );
+      hairTop.scale.set(1.04, 1.0, 1.0);
+      hairTop.position.y = 0.02 * s;
+      headGroup.add(hairTop);
+
+      const ponytail = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03 * s, 0.015 * s, 0.2 * s, 6), hairMat
+      );
+      ponytail.position.set(0, -0.12 * s, -0.1 * s);
+      ponytail.rotation.x = 0.3;
+      headGroup.add(ponytail);
+    }
+
+    this.group.add(headGroup);
+    this.bodyParts.head = headGroup;
+
+    // ---- NECK ----
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04 * s, 0.05 * s, 0.08 * s, 8), skinMat
+    );
+    neck.position.y = neckY;
+    this.group.add(neck);
+
+    // ---- TORSO ----
+    const chest = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16 * s, 0.14 * s, 0.22 * s, 8), mat
+    );
+    chest.position.y = shoulderY - 0.11;
+    chest.castShadow = true;
+    this.group.add(chest);
+
+    const waist = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13 * s, 0.11 * s, 0.2 * s, 8), mat
+    );
+    waist.position.y = shoulderY - 0.32;
+    waist.castShadow = true;
+    this.group.add(waist);
+    this.bodyParts.torso = chest;
+
+    // ---- SHORTS / SKIRT ----
+    if (this.gender === 'female') {
+      const skirt = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09 * s, 0.17 * s, 0.16 * s, 8), mat
+      );
+      skirt.position.y = hipY + 0.02;
+      this.group.add(skirt);
+    } else {
+      const shorts = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11 * s, 0.12 * s, 0.14 * s, 8), darkMat
+      );
+      shorts.position.y = hipY + 0.02;
+      this.group.add(shorts);
+    }
+
+    // ---- LEGS ----
+    for (let side of [-1, 1]) {
+      const hipPivot = new THREE.Group();
+      hipPivot.position.set(side * 0.06 * s, hipY, 0);
+
+      const thigh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05 * s, 0.04 * s, 0.38 * s, 8), skinMat
+      );
+      thigh.position.y = -0.19 * s;
+      thigh.castShadow = true;
+      hipPivot.add(thigh);
+
+      const kneePivot = new THREE.Group();
+      kneePivot.position.y = -0.38 * s;
+      hipPivot.add(kneePivot);
+
+      const kneeJoint = new THREE.Mesh(
+        new THREE.SphereGeometry(0.035 * s, 6, 6), skinMat
+      );
+      kneePivot.add(kneeJoint);
+
+      const shin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04 * s, 0.035 * s, 0.35 * s, 8), skinMat
+      );
+      shin.position.y = -0.18 * s;
+      shin.castShadow = true;
+      kneePivot.add(shin);
+
+      const ankle = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03 * s, 6, 6), skinMat
+      );
+      ankle.position.y = -0.35 * s;
+      kneePivot.add(ankle);
+
+      const shoe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07 * s, 0.045 * s, 0.14 * s), whiteMat
+      );
+      shoe.position.set(0, -0.38 * s, 0.02 * s);
+      kneePivot.add(shoe);
+
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.072 * s, 0.015 * s, 0.08 * s),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 })
+      );
+      stripe.position.set(0, -0.37 * s, 0.02 * s);
+      kneePivot.add(stripe);
+
+      this.group.add(hipPivot);
+      const sideKey = side === -1 ? 'left' : 'right';
+      this.bodyParts[sideKey + 'Leg'] = hipPivot;
+      this.bodyParts[sideKey + 'Knee'] = kneePivot;
+    }
+
+    // ---- ARMS ----
+    for (let side of [-1, 1]) {
+      const shoulderPivot = new THREE.Group();
+      shoulderPivot.position.set(side * 0.19 * s, shoulderY - 0.04, 0);
+
+      const shoulderJoint = new THREE.Mesh(
+        new THREE.SphereGeometry(0.04 * s, 8, 8), mat
+      );
+      shoulderPivot.add(shoulderJoint);
+
+      const upperArm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.035 * s, 0.03 * s, 0.22 * s, 8), skinMat
+      );
+      upperArm.position.y = -0.14 * s;
+      upperArm.castShadow = true;
+      shoulderPivot.add(upperArm);
+
+      const elbowPivot = new THREE.Group();
+      elbowPivot.position.y = -0.25 * s;
+      shoulderPivot.add(elbowPivot);
+
+      const elbowJoint = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028 * s, 6, 6), skinMat
+      );
+      elbowPivot.add(elbowJoint);
+
+      const forearm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.028 * s, 0.025 * s, 0.2 * s, 8), skinMat
+      );
+      forearm.position.y = -0.11 * s;
+      forearm.castShadow = true;
+      elbowPivot.add(forearm);
+
+      const hand = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028 * s, 6, 6), skinMat
+      );
+      hand.position.y = -0.22 * s;
+      elbowPivot.add(hand);
+
+      const isRacketArm = (this.handedness === 'right' && side === -1) ||
+                           (this.handedness === 'left' && side === 1);
+      const sideKey = isRacketArm ? 'racketArm' : 'freeArm';
+      this.bodyParts[sideKey] = shoulderPivot;
+      this.bodyParts[sideKey + 'Elbow'] = elbowPivot;
+
+      this.group.add(shoulderPivot);
+
+      if (isRacketArm) {
+        const racketGroup = new THREE.Group();
+        racketGroup.position.y = -0.22 * s;
+
+        const grip = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.014, 0.011, 0.18, 8),
+          new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.3, roughness: 0.6 })
+        );
+        grip.position.y = -0.09;
+        racketGroup.add(grip);
+
+        const shaft = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.006, 0.12, 6),
+          new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.5 })
+        );
+        shaft.position.y = -0.24;
+        racketGroup.add(shaft);
+
+        const frame = new THREE.Mesh(
+          new THREE.TorusGeometry(0.1, 0.009, 8, 20),
+          new THREE.MeshStandardMaterial({ color: col, metalness: 0.4, roughness: 0.3 })
+        );
+        frame.position.y = -0.37;
+        racketGroup.add(frame);
+
+        const strings = new THREE.Mesh(
+          new THREE.CircleGeometry(0.095, 16),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 })
+        );
+        strings.position.y = -0.37;
+        racketGroup.add(strings);
+
+        elbowPivot.add(racketGroup);
+        this.bodyParts.racket = racketGroup;
+      }
+    }
+
+    this.group.castShadow = true;
+  }
+
+  setPosition(x, z) {
+    this.targetPosition.set(x, 0, z);
+  }
+
+  teleport(x, z) {
+    this.position.set(x, 0, z);
+    this.targetPosition.set(x, 0, z);
+    this.group.position.set(x, this.groundOffset, z);
+  }
+
+  startSwing(type) {
+    this.swingPhase = 0;
+    this.swingType = type;
+
+    if (type === 'smash' || type === 'clear' || type === 'serve_flick' || type === 'serve_high') {
+      this.jumpPhase = 0;
+      this.jumpHeight = type === 'smash' ? jumpHeightOverride : jumpHeightOverride * 0.71;
+      this.jumpDuration = 0.35;
+    }
+    else if (type === 'net' && this.role === 'front') {
+      this.jumpPhase = 0;
+      this.jumpHeight = jumpHeightOverride * 0.34;
+      this.jumpDuration = 0.25;
+    }
+  }
+
+  update(dt) {
+    // Movement
+    const diff = new THREE.Vector3().subVectors(this.targetPosition, this.position);
+    const dist = diff.length();
+    this.isMoving = dist > 0.05;
+
+    if (this.isMoving) {
+      const speed = 4.5;
+      const step = Math.min(speed * dt, dist);
+      const dir = diff.normalize();
+      this.position.addScaledVector(dir, step);
+      this.targetFacingAngle = Math.atan2(dir.x, dir.z);
+    } else {
+      // Face forward (+Z)
+      this.targetFacingAngle = 0;
+    }
+
+    // Smooth facing
+    let angleDiff = this.targetFacingAngle - this.facingAngle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    this.facingAngle += angleDiff * Math.min(1, 8 * dt);
+
+    // Jump physics
+    let jumpY = 0;
+    if (this.jumpPhase >= 0) {
+      this.jumpPhase += dt / this.jumpDuration;
+      if (this.jumpPhase > 1) {
+        this.jumpPhase = -1;
+      } else {
+        const t = this.jumpPhase;
+        const tPeak = 0.35;
+        const g = 2 * this.jumpHeight / (tPeak * tPeak);
+        const v0 = g * tPeak;
+        jumpY = Math.max(0, v0 * t - 0.5 * g * t * t);
+      }
+    }
+
+    this.group.position.set(this.position.x, this.groundOffset + jumpY, this.position.z);
+    this.group.rotation.y = this.facingAngle;
+
+    // Head: neutral (no shuttlecock to track in debug mode)
+    const head = this.bodyParts.head;
+    if (head) {
+      head.rotation.y *= 0.9;
+      head.rotation.x *= 0.9;
+    }
+
+    // Walk cycle with knee and elbow bending (exact copy)
+    if (this.isMoving) {
+      this.walkCycle += dt * 10;
+      const hipSwing = Math.sin(this.walkCycle) * 0.45;
+      const leftKneeBend = Math.max(0, Math.sin(this.walkCycle)) * 0.7;
+      const rightKneeBend = Math.max(0, -Math.sin(this.walkCycle)) * 0.7;
+
+      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = hipSwing;
+      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -hipSwing;
+      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = leftKneeBend;
+      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = rightKneeBend;
+
+      if (this.bodyParts.freeArm) {
+        this.bodyParts.freeArm.rotation.x = -0.4 - hipSwing * 0.4;
+      }
+      if (this.bodyParts.freeArmElbow) {
+        const elbowBend = Math.max(0, Math.sin(this.walkCycle)) * 0.5 + 0.3;
+        this.bodyParts.freeArmElbow.rotation.x = -elbowBend;
+      }
+    } else {
+      // Idle
+      this.walkCycle += dt * 2;
+      const sway = Math.sin(this.walkCycle) * 0.03;
+      if (this.bodyParts.leftLeg) this.bodyParts.leftLeg.rotation.x = sway;
+      if (this.bodyParts.rightLeg) this.bodyParts.rightLeg.rotation.x = -sway;
+      if (this.bodyParts.leftKnee) this.bodyParts.leftKnee.rotation.x = 0.15;
+      if (this.bodyParts.rightKnee) this.bodyParts.rightKnee.rotation.x = 0.15;
+      if (this.bodyParts.freeArm) this.bodyParts.freeArm.rotation.x = -0.4 + sway;
+      if (this.bodyParts.freeArmElbow) this.bodyParts.freeArmElbow.rotation.x = -0.4;
+    }
+
+    // Racket arm: ready position + swing animation (exact copy)
+    const arm = this.bodyParts.racketArm;
+    const elbow = this.bodyParts.racketArmElbow;
+    if (arm) {
+      const isFront = this.role === 'front';
+      const readyX = isFront ? -1.2 : -0.7;
+      const readyZ = 0.1;
+      const readyElbow = isFront ? -0.8 : -0.5;
+      const bob = Math.sin(this.walkCycle * 1.5) * 0.05;
+
+      if (this.swingPhase >= 0) {
+        this.swingPhase += dt * swingSpeedMultiplier;
+        if (this.swingPhase > 1) {
+          this.swingPhase = -1;
+        } else {
+          const t = this.swingPhase;
+          if (this.swingType === 'smash' || this.swingType === 'clear' || this.swingType === 'serve_flick' || this.swingType === 'serve_high') {
+            if (t < 0.3) {
+              const wind = t / 0.3;
+              arm.rotation.x = readyX + (-Math.PI * 1.15 - readyX) * wind;
+              arm.rotation.z = wind * 0.3;
+              if (elbow) elbow.rotation.x = readyElbow + (-1.8 - readyElbow) * wind;
+            } else if (t < 0.5) {
+              const strike = (t - 0.3) / 0.2;
+              arm.rotation.x = -Math.PI * 1.15 + Math.PI * 0.35 * strike;
+              arm.rotation.z = 0.3 - strike * 0.15;
+              if (elbow) elbow.rotation.x = -1.8 + 1.8 * strike;
+            } else {
+              const follow = (t - 0.5) / 0.5;
+              arm.rotation.x = -Math.PI * 0.8 + Math.PI * 0.9 * follow;
+              arm.rotation.z = 0.15 * (1 - follow);
+              if (elbow) elbow.rotation.x = -0.3 * (1 - follow) + readyElbow * follow;
+            }
+          } else if (this.swingType === 'drop' || this.swingType === 'net' || this.swingType === 'serve_short') {
+            const push = Math.sin(t * Math.PI);
+            arm.rotation.x = readyX - push * 0.5;
+            arm.rotation.z = readyZ + push * 0.25;
+            if (elbow) elbow.rotation.x = readyElbow + push * 0.4;
+          } else if (this.swingType === 'lift') {
+            if (t < 0.4) {
+              const down = t / 0.4;
+              arm.rotation.x = readyX + (0.3 - readyX) * down;
+              arm.rotation.z = readyZ;
+              if (elbow) elbow.rotation.x = readyElbow + (0.2 - readyElbow) * down;
+            } else {
+              const up = (t - 0.4) / 0.6;
+              arm.rotation.x = 0.3 - Math.PI * 0.8 * up;
+              arm.rotation.z = readyZ + up * 0.2;
+              if (elbow) elbow.rotation.x = 0.2 - 1.2 * up;
+            }
+          } else {
+            // Drive
+            const side = Math.sin(t * Math.PI);
+            arm.rotation.x = readyX - side * 0.3;
+            arm.rotation.z = readyZ - side * 1.0;
+            if (elbow) elbow.rotation.x = readyElbow - side * 0.6;
+          }
+        }
+      }
+
+      // Ready position with idle bob
+      if (this.swingPhase < 0) {
+        arm.rotation.x = readyX + bob;
+        arm.rotation.z = readyZ;
+        if (elbow) elbow.rotation.x = readyElbow + bob * 0.5;
+      }
+    }
+  }
+}
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+function createPlayer() {
+  const gender = document.getElementById('gender-select').value;
+  const hand = document.getElementById('hand-select').value;
+  const role = document.getElementById('role-select').value;
+  player = new Player('Debug', gender, 'A', hand);
+  player.role = role;
+  player.teleport(0, 0);
+}
+
+function init() {
+  initScene();
+  createFloor();
+  createPlayer();
+  animate();
+}
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+function animate() {
+  requestAnimationFrame(animate);
+
+  let dt = clock.getDelta() * animSpeed;
+  if (dt > 0.1) dt = 0.1;
+
+  // Walk demo logic
+  if (walkState === 'walking' && player) {
+    const diff = new THREE.Vector3().subVectors(player.targetPosition, player.position);
+    if (diff.length() < 0.1) {
+      // Pick a new random walk target
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 1.0 + Math.random() * 1.5;
+      player.setPosition(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    }
+  }
+
+  // Loop: re-trigger when swing finishes
+  if (loopEnabled && player && player.swingPhase < 0 && currentAnim !== 'idle' && currentAnim !== 'walk') {
+    player.startSwing(currentAnim);
+  }
+
+  if (player) {
+    player.update(dt);
+  }
+
+  updateStateOverlay();
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ============================================================
+// STATE OVERLAY
+// ============================================================
+function updateStateOverlay() {
+  if (!player) return;
+  const el = document.getElementById('state-overlay');
+  const arm = player.bodyParts.racketArm;
+  const elbow = player.bodyParts.racketArmElbow;
+  const lLeg = player.bodyParts.leftLeg;
+  const rLeg = player.bodyParts.rightLeg;
+  const lKnee = player.bodyParts.leftKnee;
+  const rKnee = player.bodyParts.rightKnee;
+  const freeArm = player.bodyParts.freeArm;
+  const freeElbow = player.bodyParts.freeArmElbow;
+
+  const f = (v) => v !== undefined ? v.toFixed(3) : '---';
+  const deg = (v) => v !== undefined ? (v * 180 / Math.PI).toFixed(1) + '\u00b0' : '---';
+
+  const jumpY = player.group.position.y - player.groundOffset;
+
+  let lines = [];
+  lines.push(`Animation: ${currentAnim}`);
+  lines.push(`Role:      ${player.role}`);
+  lines.push(`Moving:    ${player.isMoving}`);
+  lines.push(``);
+  lines.push(`--- Swing ---`);
+  lines.push(`swingPhase:  ${f(player.swingPhase)}`);
+  lines.push(`swingType:   ${player.swingType}`);
+  lines.push(``);
+  lines.push(`--- Jump ---`);
+  lines.push(`jumpPhase:   ${f(player.jumpPhase)}`);
+  lines.push(`jumpHeight:  ${f(player.jumpHeight)}`);
+  lines.push(`jumpY:       ${f(jumpY)}`);
+  lines.push(``);
+  lines.push(`--- Walk ---`);
+  lines.push(`walkCycle:   ${f(player.walkCycle)}`);
+  lines.push(`facingAngle: ${deg(player.facingAngle)}`);
+  lines.push(``);
+  lines.push(`--- Racket Arm ---`);
+  if (arm) {
+    lines.push(`shoulder.x:  ${deg(arm.rotation.x)}`);
+    lines.push(`shoulder.z:  ${deg(arm.rotation.z)}`);
+  }
+  if (elbow) {
+    lines.push(`elbow.x:     ${deg(elbow.rotation.x)}`);
+  }
+  lines.push(``);
+  lines.push(`--- Free Arm ---`);
+  if (freeArm) {
+    lines.push(`shoulder.x:  ${deg(freeArm.rotation.x)}`);
+  }
+  if (freeElbow) {
+    lines.push(`elbow.x:     ${deg(freeElbow.rotation.x)}`);
+  }
+  lines.push(``);
+  lines.push(`--- Legs ---`);
+  if (lLeg) {
+    lines.push(`L hip.x:     ${deg(lLeg.rotation.x)}`);
+  }
+  if (lKnee) {
+    lines.push(`L knee.x:    ${deg(lKnee.rotation.x)}`);
+  }
+  if (rLeg) {
+    lines.push(`R hip.x:     ${deg(rLeg.rotation.x)}`);
+  }
+  if (rKnee) {
+    lines.push(`R knee.x:    ${deg(rKnee.rotation.x)}`);
+  }
+
+  el.textContent = lines.join('\n');
+}
+
+// ============================================================
+// CONTROLS (exposed to window)
+// ============================================================
+window.triggerAnim = function(type) {
+  if (!player) return;
+  walkState = 'swing';
+  currentAnim = type;
+  // Stop walking, return to origin
+  player.setPosition(0, 0);
+  player.startSwing(type);
+  highlightButton(type);
+};
+
+window.triggerWalk = function() {
+  if (!player) return;
+  walkState = 'walking';
+  currentAnim = 'walk';
+  // Start walking to a random point
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 1.5;
+  player.setPosition(Math.cos(angle) * radius, Math.sin(angle) * radius);
+  highlightButton('walk');
+};
+
+window.triggerIdle = function() {
+  if (!player) return;
+  walkState = 'idle';
+  currentAnim = 'idle';
+  player.setPosition(0, 0);
+  player.teleport(0, 0);
+  player.swingPhase = -1;
+  player.jumpPhase = -1;
+  highlightButton('idle');
+};
+
+window.updateAnimSpeed = function(val) {
+  animSpeed = parseFloat(val);
+  document.getElementById('anim-speed-val').textContent = animSpeed.toFixed(1) + 'x';
+};
+
+window.updateJumpHeight = function(val) {
+  jumpHeightOverride = parseFloat(val);
+  document.getElementById('jump-height-val').textContent = jumpHeightOverride.toFixed(2);
+};
+
+window.updateSwingSpeed = function(val) {
+  swingSpeedMultiplier = parseFloat(val);
+  document.getElementById('swing-speed-val').textContent = swingSpeedMultiplier.toFixed(1);
+};
+
+window.updateLoop = function(on) {
+  loopEnabled = on;
+};
+
+window.updateRole = function() {
+  if (!player) return;
+  player.role = document.getElementById('role-select').value;
+};
+
+window.rebuildPlayer = function() {
+  if (player) {
+    scene.remove(player.group);
+    // Dispose geometries/materials
+    player.group.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+  }
+  createPlayer();
+};
+
+function highlightButton(name) {
+  document.querySelectorAll('.anim-btn').forEach(btn => btn.classList.remove('active'));
+  const labels = {
+    'smash': 'Smash', 'clear': 'Clear', 'drop': 'Drop', 'net': 'Net',
+    'lift': 'Lift', 'drive': 'Drive', 'serve_short': 'Short Serve',
+    'serve_flick': 'Flick Serve', 'walk': 'Walk', 'idle': 'Idle'
+  };
+  document.querySelectorAll('.anim-btn').forEach(btn => {
+    if (btn.textContent.includes(labels[name] || '___')) {
+      btn.classList.add('active');
+    }
+  });
+}
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+init();
+</script>
+</body>
+</html>
