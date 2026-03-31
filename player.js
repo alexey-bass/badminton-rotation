@@ -144,21 +144,19 @@ export class Player {
       // Short hair: skip front 100° (0.28π each side), cover top 52% of sphere
       const hair = new THREE.Mesh(
         new THREE.SphereGeometry(0.14 * s, 16, 10,
-          Math.PI * 0.28,       // phiStart: skip front-right
-          Math.PI * 1.44,       // phiLength: wrap around back (260°)
-          0,                    // thetaStart: from top
-          Math.PI * 0.52        // thetaLength: down to just past equator
+          Math.PI * 0.78,       // phiStart: +90° rotated to skip face
+          Math.PI * 1.44,       // phiLength: 260° coverage
+          0,
+          Math.PI * 0.52
         ), hairMat);
-      // Same center as skull — no position offset needed
       headGroup.add(hair);
     } else {
-      // Female hair: skip front 80° (0.22π each side), cover more (58%)
       const hair = new THREE.Mesh(
         new THREE.SphereGeometry(0.145 * s, 16, 10,
-          Math.PI * 0.22,
+          Math.PI * 0.72,       // +90° rotated
           Math.PI * 1.56,       // 280° coverage
           0,
-          Math.PI * 0.58        // lower coverage for longer look
+          Math.PI * 0.58
         ), hairMat);
       headGroup.add(hair);
 
