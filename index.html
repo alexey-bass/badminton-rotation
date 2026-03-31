@@ -1042,14 +1042,14 @@ class Player {
     // Jump for overhead shots (smash, clear, flick/high serve)
     if (type === 'smash' || type === 'clear' || type === 'serve_flick' || type === 'serve_high') {
       this.jumpPhase = 0;
-      this.jumpHeight = type === 'smash' ? 0.35 : 0.25; // smash jumps higher
-      this.jumpDuration = 0.5;
+      this.jumpHeight = type === 'smash' ? 0.35 : 0.25;
+      this.jumpDuration = 0.35;
     }
     // Small hop for intercepts at net (net kill)
     else if (type === 'net' && this.role === 'front') {
       this.jumpPhase = 0;
       this.jumpHeight = 0.12;
-      this.jumpDuration = 0.3;
+      this.jumpDuration = 0.25;
     }
   }
 
@@ -1079,16 +1079,20 @@ class Player {
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     this.facingAngle += angleDiff * Math.min(1, 8 * dt);
 
-    // Jump physics
+    // Jump physics — real gravity: v0 up, then g pulls down
     let jumpY = 0;
     if (this.jumpPhase >= 0) {
       this.jumpPhase += dt / this.jumpDuration;
       if (this.jumpPhase > 1) {
         this.jumpPhase = -1;
       } else {
-        // Parabolic arc: peak at t=0.4 (jump up fast, hang, come down)
         const t = this.jumpPhase;
-        jumpY = this.jumpHeight * 4 * t * (1 - t); // parabola, peak at t=0.5
+        // Gravity curve: peak at t=0.35 (quick up, fast down)
+        // h(t) = v0*t - 0.5*g*t^2, solve for v0 so peak is at t=0.35
+        const tPeak = 0.35;
+        const g = 2 * this.jumpHeight / (tPeak * tPeak);
+        const v0 = g * tPeak;
+        jumpY = Math.max(0, v0 * t - 0.5 * g * t * t);
       }
     }
 
