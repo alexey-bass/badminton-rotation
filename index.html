@@ -1066,6 +1066,29 @@ class Player {
     this.group.position.set(this.position.x, this.groundOffset, this.position.z);
     this.group.rotation.y = this.facingAngle;
 
+    // Head tracks shuttlecock
+    const head = this.bodyParts.head;
+    if (head && shuttlecock && shuttlecock.active) {
+      // Get shuttle world position, convert to player local space
+      const shuttleWorld = shuttlecock.group.position;
+      const localPos = this.group.worldToLocal(shuttleWorld.clone());
+      // Compute angles from head to shuttle
+      const dx = localPos.x - head.position.x;
+      const dy = localPos.y - head.position.y;
+      const dz = localPos.z - head.position.z;
+      // Yaw (left/right) — clamp so head doesn't spin around
+      const yaw = Math.atan2(dx, dz);
+      head.rotation.y = Math.max(-0.8, Math.min(0.8, yaw));
+      // Pitch (up/down) — look up at high shots, down at low
+      const hDist = Math.sqrt(dx * dx + dz * dz);
+      const pitch = -Math.atan2(dy, hDist);
+      head.rotation.x = Math.max(-0.5, Math.min(0.4, pitch));
+    } else if (head) {
+      // Smoothly return to neutral
+      head.rotation.y *= 0.9;
+      head.rotation.x *= 0.9;
+    }
+
     // Walk cycle with knee and elbow bending
     if (this.isMoving) {
       this.walkCycle += dt * 10;
