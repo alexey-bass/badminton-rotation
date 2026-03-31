@@ -137,7 +137,35 @@ export class Player {
       headGroup.add(ear);
     }
 
-    // Hair removed — bald for now
+    // Hair: hemisphere (top half of sphere) tilted backward around X axis
+    // This naturally exposes the forehead while covering crown + back
+    // Skull radius = 0.13*s, hair just slightly larger to sit on top
+    if (this.gender === 'male') {
+      // Short hair: hemisphere tilted back ~20°
+      const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.135 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.48), hairMat);
+      hair.rotation.x = -0.35; // tilt back: front edge rises, back dips
+      headGroup.add(hair);
+    } else {
+      // Female: slightly more coverage, tilted back
+      const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.138 * s, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMat);
+      hair.rotation.x = -0.3;
+      headGroup.add(hair);
+
+      // Back hair flowing down behind head
+      const hairBack = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09 * s, 0.05 * s, 0.14 * s, 8), hairMat);
+      hairBack.position.set(0, -0.08 * s, -0.08 * s);
+      headGroup.add(hairBack);
+
+      // Ponytail
+      const ponytail = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03 * s, 0.015 * s, 0.2 * s, 6), hairMat);
+      ponytail.position.set(0, -0.18 * s, -0.09 * s);
+      ponytail.rotation.x = 0.3;
+      headGroup.add(ponytail);
+    }
 
     this.group.add(headGroup);
     this.bodyParts.head = headGroup;
