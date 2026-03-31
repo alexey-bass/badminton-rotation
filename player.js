@@ -499,13 +499,21 @@ export class Player {
     // Store shuttle contact position for aiming the racket
     this._swingTarget = shuttleWorldPos ? shuttleWorldPos.clone() : null;
 
-    if (type === 'smash' || type === 'clear' || type === 'serve_flick' || type === 'serve_high') {
+    const isOverhead = type.startsWith('smash') || type === 'clear' || type.startsWith('drop') ||
+                       type === 'serve_flick' || type === 'serve_high';
+    if (isOverhead) {
       this.jumpPhase = 0;
-      this.jumpHeight = type === 'smash' ? this.jumpHeights.smash : this.jumpHeights.overhead;
-      this.jumpDuration = 0.35;
-    } else if (type === 'net' && this.role === 'front') {
+      if (type === 'smash_jump') {
+        this.jumpHeight = this.jumpHeights.smash * 1.3; // highest jump
+      } else if (type.startsWith('smash')) {
+        this.jumpHeight = this.jumpHeights.smash;
+      } else {
+        this.jumpHeight = this.jumpHeights.overhead;
+      }
+      this.jumpDuration = type === 'smash_jump' ? 0.4 : 0.35;
+    } else if ((type === 'net_kill' || type === 'net') && this.role === 'front') {
       this.jumpPhase = 0;
-      this.jumpHeight = this.jumpHeights.netHop;
+      this.jumpHeight = type === 'net_kill' ? this.jumpHeights.netHop * 1.2 : this.jumpHeights.netHop;
       this.jumpDuration = 0.25;
     }
   }
@@ -582,7 +590,9 @@ export class Player {
 
     // Lunge: triggered when swinging and close to target (reaching for shuttle)
     if (this.swingPhase >= 0 && this.swingPhase < 0.1 && this.lungePhase < 0 && this.jumpPhase < 0) {
-      const shotNeedsLunge = ['net', 'drop', 'lift', 'drive', 'serve_short'].includes(this.swingType);
+      const st = this.swingType;
+      const shotNeedsLunge = ['net', 'net_kill', 'push', 'block', 'block_cross', 'lift', 'serve_short'].includes(st)
+        || st.startsWith('drop') || st.startsWith('drive');
       if (shotNeedsLunge) {
         this.lungePhase = 0;
         this.lungeSide = Math.random() > 0.5 ? 1 : -1; // which foot leads
@@ -731,29 +741,60 @@ export class Player {
           const aimBlend = t < 0.5 ? 1.0 : Math.max(0, 1.0 - (t - 0.5) / 0.5); // fade out on follow-through
           arm.rotation.y = aimY * aimBlend;
 
-          if (this.swingType === 'smash' || this.swingType === 'clear' || this.swingType === 'serve_flick' || this.swingType === 'serve_high') {
-            if (t < 0.3) {
-              const wind = t / 0.3;
+          const st = this.swingType;
+          const isOverhead = st.startsWith('smash') || st === 'clear' || st.startsWith('drop') ||
+                             st === 'serve_flick' || st === 'serve_high';
+          const isStick = st === 'smash_stick';
+
+          if (isOverhead) {
+            // Overhead swing: wind-up → strike above head → follow through
+            // Stick smash: minimal wind-up (0.1 instead of 0.3)
+            const windEnd = isStick ? 0.15 : 0.3;
+            const strikeEnd = isStick ? 0.35 : 0.5;
+            if (t < windEnd) {
+              const wind = t / windEnd;
               arm.rotation.x = readyX + (-Math.PI * 1.15 - readyX) * wind;
               arm.rotation.z = wind * 0.3;
               if (elbow) elbow.rotation.x = readyElbow + (-1.8 - readyElbow) * wind;
-            } else if (t < 0.5) {
-              const strike = (t - 0.3) / 0.2;
+            } else if (t < strikeEnd) {
+              const strike = (t - windEnd) / (strikeEnd - windEnd);
               arm.rotation.x = -Math.PI * 1.15 + Math.PI * 0.35 * strike;
               arm.rotation.z = 0.3 - strike * 0.15;
               if (elbow) elbow.rotation.x = -1.8 + 1.8 * strike;
             } else {
-              const follow = (t - 0.5) / 0.5;
-              arm.rotation.x = -Math.PI * 0.8 + Math.PI * 0.9 * follow;
+              const follow = (t - strikeEnd) / (1 - strikeEnd);
+              // Half-smash / drop: less follow-through
+              const followRange = (st === 'smash_half' || st.startsWith('drop')) ? 0.6 : 0.9;
+              arm.rotation.x = -Math.PI * 0.8 + Math.PI * followRange * follow;
               arm.rotation.z = 0.15 * (1 - follow);
               if (elbow) elbow.rotation.x = -0.3 * (1 - follow) + readyElbow * follow;
             }
-          } else if (this.swingType === 'drop' || this.swingType === 'net' || this.swingType === 'serve_short') {
+          } else if (st === 'block' || st === 'block_cross') {
+            // Block: absorb, minimal motion — racket stays in place, slight angle
+            const absorb = Math.sin(t * Math.PI) * 0.15;
+            arm.rotation.x = readyX - absorb;
+            arm.rotation.z = readyZ + absorb * 0.5;
+            if (elbow) elbow.rotation.x = readyElbow + absorb * 0.3;
+          } else if (st === 'net_kill') {
+            // Net kill: sharp quick downward tap from high position
+            if (t < 0.3) {
+              const prep = t / 0.3;
+              arm.rotation.x = readyX + (-1.5 - readyX) * prep; // racket high
+              if (elbow) elbow.rotation.x = readyElbow - prep * 0.3;
+            } else {
+              const strike = (t - 0.3) / 0.7;
+              arm.rotation.x = -1.5 + 1.0 * strike; // punch down
+              arm.rotation.z = readyZ + strike * 0.15;
+              if (elbow) elbow.rotation.x = readyElbow - 0.3 + strike * 0.5;
+            }
+          } else if (st === 'net' || st === 'push' || st === 'serve_short') {
+            // Gentle forward push / net tap
             const push = Math.sin(t * Math.PI);
             arm.rotation.x = readyX - push * 0.5;
             arm.rotation.z = readyZ + push * 0.25;
             if (elbow) elbow.rotation.x = readyElbow + push * 0.4;
-          } else if (this.swingType === 'lift') {
+          } else if (st === 'lift') {
+            // Underhand scoop
             if (t < 0.4) {
               const down = t / 0.4;
               arm.rotation.x = readyX + (0.3 - readyX) * down;
@@ -766,6 +807,7 @@ export class Player {
               if (elbow) elbow.rotation.x = 0.2 - 1.2 * up;
             }
           } else {
+            // Drive / default: side swing with elbow snap
             const side = Math.sin(t * Math.PI);
             arm.rotation.x = readyX - side * 0.3;
             arm.rotation.z = readyZ - side * 1.0;

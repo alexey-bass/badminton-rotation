@@ -51,19 +51,42 @@ Options (dependency injection):
 ### Dynamic Rally Engine (rule-based, no hardcoded patterns)
 Rallies are generated dynamically shot-by-shot using real badminton rotation rules.
 
-**Shot selection** (`_chooseShot`): Based on player's role (front/back) and team formation:
-- Back player in attack: smash (40%), drop (35%), clear (25%)
-- Front player in attack: net shot (80%), lift (20%)
-- Defense: lift (40%), block to net (25%), drive (35%)
+**Shot types** (all from 5-HITS.md reference):
+- Smash variants: `smash`, `smash_half`, `smash_stick`, `smash_jump`, `smash_slice`
+- Drop variants: `drop`, `drop_fast`, `drop_slow`
+- Drive variants: `drive`, `drive_flat`, `drive_offensive`, `drive_defensive`
+- Net: `net`, `net_kill`, `push`
+- Block: `block`, `block_cross`
+- Others: `clear`, `lift`
 
-**Target computation** (`_computeTarget`): Each shot type has realistic landing zones with randomized X variation for variety.
+**Shot selection** (`_chooseShot`): Based on role, formation, and context per reference docs:
+- **Back in attack**: smash (55-60%), fast drop (12%), half-smash (10%), slow drop (8%), clear (5%). Tempo variation: if 3+ recent smashes → more drops/half-smash.
+- **Front in attack**: net kill (20%), net shot (35%), push (17%), drive (13%), lift (15% last resort).
+- **Defense**: block/block_cross (30%), drive (25%), push (10%), lift (35%).
+- **Serve return** (rallyLength===1): special logic per serve type from 4-SERVES golden rule ("don't lift unless forced"). Short serve → net kill/net/push. Flick → smash/drop. Drive → block/counter-drive.
+- **Diagonal/transition**: drive (35%), push (20%), block/net (20%), lift (25%).
 
-**Rotation rules** (`_applyRotationRules`): Applied BEFORE positioning players each shot:
+**Target computation** (`_computeTarget`): Targets opponent gaps, body, or court sides:
+- Smash: 45% straight, 20% body (closer opponent), 20% gap (between opponents), 15% cross-court
+- Net/push: 40% cross-net, 35% straight, 25% tight center
+- Block_cross targets opposite side from hitter
+
+**Rotation rules** (`_applyRotationRules`): Applied BEFORE positioning per 2-FORMATIONS:
 - **Smash**: hitter stays back, partner stays front → attack maintained
-- **Drop (FOLLOW THE SHUTTLE)**: hitter follows drop forward → becomes front player, partner rotates back. This is the key rotation mechanic.
-- **Net shot**: hitter stays front, partner covers back → attack maintained
-- **Lift/Clear (CONCEDE ATTACK)**: hitting team → immediate defense (side by side). Receiving team → attack.
-- **Drive**: neutral, keep current formation.
+- **Drop (FOLLOW THE SHUTTLE)**: hitter follows forward → becomes front, partner rotates back
+- **Block (DEFENSE→ATTACK)**: blocker moves forward to front → key transition mechanism
+- **Net/push/net_kill**: hitter stays front, partner covers back → attack maintained
+- **Lift/Clear (CONCEDE ATTACK)**: → immediate side-by-side defense
+- **Drive**: → diagonal transitional formation (one slightly forward, one behind, opposite sides)
+
+**Formation positioning** (`_positionTeam`) per 2-FORMATIONS:
+- **Attack**: front at service line (~1.98m), shifted to SAME side as attack. Back at ~5.2m, slightly biased toward attack side.
+- **Defense**: side-by-side at ~3.5m (one step behind mid-court), both shift laterally toward attack side.
+- **Diagonal**: one player slightly forward on one side, other slightly behind on opposite side.
+
+**Serve positioning** per 4-SERVES:
+- Server at service line. Partner 2 racket lengths (~1.34m) behind.
+- Receiver close to service line (0.3m behind). Receiver's partner at mid-court (~3.5m).
 
 **Reaction delay**: Receiving team doesn't move instantly — delay varies by shot speed:
 - Smash: 0.12s, Drive: 0.15s, Drop: 0.20s, Net: 0.18s, Clear: 0.30s, Lift: 0.28s

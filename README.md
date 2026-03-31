@@ -9,12 +9,15 @@
 - **Players track the shuttlecock** — all heads follow the bird in flight, racket aims at contact point
 - **Realistic footwork** — split step on movement start, badminton shuffle (body always faces net), lunges for net/drop shots, athletic ready stance
 - **Realistic reaction delays** — receiving team reacts slower to smashes (0.12s) vs clears (0.30s)
-- **Dynamic rotation engine** — rule-based rally generation (not scripted), implements real badminton rotation principles:
+- **20+ shot types** — smash (full, half, stick, jump, slice), drops (fast, slow), drives (flat, offensive, defensive), net kill, push, block, clear, lift
+- **Dynamic rotation engine** — rule-based per reference docs, implements real doubles rotation:
   - Follow the shuttle (drop → hitter follows forward, partner rotates back)
+  - Block → attack transition (blocker moves to front)
   - Lift/clear → immediate defense (side by side)
-  - Smash → stay in attack (front/back)
-  - Net shot → maintain pressure, force opponent to lift
-  - Front player lateral shift to mirror back player's attack side
+  - Drive → diagonal transitional formation
+  - Serve return golden rule (don't lift unless forced)
+  - Tempo variation (shot history tracking)
+  - Targeting: opponent body, gaps between players, court sides
 - **4 serve types** — short (👇), flick (👆), high (☝️), drive (👉)
 - **Serve-specific formations** — short serve → attack, flick/high → defense
 - **Reach zone visualization** — asymmetric zones (wider on racket side), green-to-red gradient showing easy vs hard-to-reach areas
@@ -49,7 +52,9 @@ Based on standard mixed doubles rotation principles:
 |-----------|-------------|----------------|
 | Smash from back | Attack (hitter stays back) | Defense (side by side) |
 | Drop from back | Attack (hitter follows forward → becomes front) | Defense |
-| Net shot | Attack (hitter stays front) | Depends on response |
+| Block from defense | Attack (blocker moves to front) | Under pressure |
+| Net shot / Push | Attack (hitter stays front) | Depends on response |
+| Drive | Diagonal (transitional) | Diagonal |
 | Lift / Clear | Defense (side by side) | Attack (front/back) |
 | Short serve | Attack (server stays front) | Defense |
 | Flick / High serve | Defense (conceded attack) | Attack |
