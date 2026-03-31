@@ -13,15 +13,29 @@ A single-file browser app (`index.html`) that visualizes badminton mixed doubles
 - **OrbitControls** — from Three.js addons (same CDN)
 - No framework, no bundler, no package.json
 
-## Architecture (all in index.html)
+## Architecture
 
-### Sections (top to bottom)
-1. **CSS** — UI overlay styles (top bar, panels, controls, formation banner)
-2. **HTML** — UI elements (formation banner, shot info, team panels, controls, legend)
-3. **JS module** — all logic in a single `<script type="module">`
+### Files
+- **`index.html`** — main app (CSS + HTML + game logic)
+- **`player.js`** — shared ES module with `Player` class, `PLAYER_H`, `RACKET_LEN` exports
+- **`physics.html`** — animation debug/tuning page (imports `player.js`)
+
+Both HTML files import `player.js` via ES module. **Requires HTTP server** (not `file://`) due to CORS restrictions on module imports. GitHub Pages works fine.
+
+### player.js — Shared Player Module
+`initPlayerModule(THREE)` must be called before creating players. Constructor: `new Player(scene, name, gender, team, handedness, options)`.
+
+Options (dependency injection):
+- `getShuttlecock`: `() => shuttlecock` — for head tracking (index.html only)
+- `getCamera`: `() => camera` — for label projection (index.html only)
+- `getReachVisible` / `getReachOpacity`: for reach zones (index.html only)
+- `onLabelCreated`: `(div) => void` — callback when label div created
+- `idleFacing`: `'net'` (default, faces net) or `'forward'` (physics.html)
+- `swingSpeed`: swing phase multiplier (default 5, tunable in physics.html)
+- `jumpHeights`: `{ smash, overhead, netHop }` — tunable jump heights
 
 ### Key Classes
-- **`Player`** — Detailed 3D humanoid model with visible face (eyes, nose, mouth, ears), hair (short for male, ponytail for female), articulated arms (shoulder, upper arm, elbow, forearm, hand), articulated legs (thigh, knee, shin, ankle, shoe with team-colored stripe), two-part torso (chest + waist), neck. Movement interpolation, swing animations, floating name label. Properties: name, gender, team (A/B), handedness (left/right), role (front/back)
+- **`Player`** (in player.js) — Detailed 3D humanoid model with visible face (eyes, nose, mouth, ears), hair (short for male, ponytail for female), articulated arms (shoulder, upper arm, elbow, forearm, hand), articulated legs (thigh, knee, shin, ankle, shoe with team-colored stripe), two-part torso (chest + waist), neck. Movement interpolation, swing animations, floating name label. Properties: name, gender, team (A/B), handedness (left/right), role (front/back)
 - **`Shuttlecock`** — cork+feather model with glow, cubic bezier trajectory (4-point, guarantees net clearance), trail effect
 - **`RallyEngine`** — orchestrates rallies. Generates shot sequences from 6 choreographed patterns, moves players, triggers swings, updates formation display
 - **`FormationIndicator`** — colored circles on court showing attack (front/back zones) or defense (side/side zones)

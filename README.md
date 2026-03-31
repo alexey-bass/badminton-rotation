@@ -23,19 +23,22 @@
 
 ## How to Run
 
-Just open `index.html` in a browser. No install, no build step.
+Requires a local HTTP server (ES modules don't load from `file://`):
 
 ```
-open index.html
+python3 -m http.server 8080
+# then open http://localhost:8080
 ```
 
-Or use any local file server.
+Or just use the [live demo](https://alexey-bass.github.io/badminton-rotation/).
 
 ## Tech Stack
 
-- Single HTML file (~2000 lines)
+- `index.html` — main app
+- `player.js` — shared Player module (ES module, imported by both pages)
+- `physics.html` — animation debug/tuning page
 - [Three.js](https://threejs.org/) r0.160.0 (loaded via CDN)
-- No framework, no bundler, no dependencies
+- No framework, no bundler, no npm dependencies
 
 ## Rotation Rules Reference
 
